@@ -86,7 +86,7 @@ export async function restart(
   if (!alreadyStopped) {
     await _stop();
   }
-  await _start(config, flags);
+  return _start(config, flags);
 }
 
 export async function cleanRestart(config: string, sqlDumps: string) {
