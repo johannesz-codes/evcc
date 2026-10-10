@@ -62,6 +62,7 @@ func NewSgReadyFromConfig(ctx context.Context, other map[string]any) (api.Charge
 		SetMaxPower             *plugin.Config // optional
 		measurement.Temperature `mapstructure:",squash"`
 		measurement.Energy      `mapstructure:",squash"`
+		measurement.Thermal     `mapstructure:",squash"`
 	}{
 		embed: embed{
 			Icon_:     "heatpump",
@@ -121,6 +122,12 @@ func NewSgReadyFromConfig(ctx context.Context, other map[string]any) (api.Charge
 	}
 	implement.May(res, implement.Battery(tempG))
 	implement.May(res, implement.SocLimiter(limitTempG))
+
+	thermal, err := cc.Thermal.Configure(ctx)
+	if err != nil {
+		return nil, err
+	}
+	implement.May(res, thermal)
 
 	return res, nil
 }

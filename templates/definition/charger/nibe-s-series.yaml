@@ -42,8 +42,88 @@ params:
     description:
       de: Leistungssteuerung
       en: power limitation
+  - name: roomcontrol
+    type: bool
+    default: false
+    description:
+      de: Raumtemperatur-Boost
+      en: Room comfort boost
+    help:
+      de: Aktiviert temporäre Änderungen des Raum-Sollwerts. Smart Room Comfort muss eingerichtet und die Raumsensorregelung aktiviert sein.
+      en: Enables temporary room target changes. Smart Room Comfort must be configured and room sensor control enabled.
+  - name: roomboost
+    type: float
+    default: 1
+    unit: K
+    description:
+      de: Raumtemperatur-Anhebung
+      en: Room boost delta
+    help:
+      de: Positive Anhebung um maximal 5 K in Schritten von 0,1 K.
+      en: Positive preload of at most 5 K in 0.1 K steps.
+  - name: dhwcontrol
+    type: bool
+    default: false
+    description:
+      de: Warmwasser-Boost
+      en: Hot water comfort boost
+  - name: dhwboost
+    type: choice
+    choice: ["medium", "large"]
+    default: large
+    description:
+      de: Warmwasser-Boostmodus
+      en: Hot water boost mode
 render: |
   type: sgready
+  {{- if or .roomcontrol .dhwcontrol }}
+  thermal:
+    {{- if .roomcontrol }}
+    spaceHeating:
+      min: 5
+      max: 30
+      step: 0.1
+      boost:
+        delta: {{ .roomboost }}
+      get:
+        source: modbus
+        {{- include "modbus" . | indent 6 }}
+        register:
+          address: 206
+          type: holding
+          encoding: int16
+        scale: 0.1
+      set:
+        source: modbus
+        {{- include "modbus" . | indent 6 }}
+        register:
+          address: 206
+          type: writeholding
+          encoding: int16
+        scale: 10
+    {{- end }}
+    {{- if .dhwcontrol }}
+    domesticHotWater:
+      modes: {small: 0, medium: 1, large: 2, notInUse: 3, smartControl: 4}
+      boostmodes: [medium, large]
+      boost:
+        mode: {{ .dhwboost }}
+      get:
+        source: modbus
+        {{- include "modbus" . | indent 6 }}
+        register:
+          address: 56
+          type: holding
+          encoding: int16
+      set:
+        source: modbus
+        {{- include "modbus" . | indent 6 }}
+        register:
+          address: 56
+          type: writeholding
+          encoding: int16
+    {{- end }}
+  {{- end }}
   setmode:
     source: map
     values:
