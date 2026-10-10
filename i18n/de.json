@@ -1787,6 +1787,11 @@
     "vehicles": "Parkplatz",
     "welcome": "Herzlich willkommen!",
     "thermal": {
+      "title": "Komfort",
+      "settings": "Komforteinstellungen",
+      "changed": "Sollwert geändert",
+      "restoring": "Wiederherstellung ausstehend",
+      "requested": "Boost angefordert",
       "sharedPlant": "Komfortfunktionen einer Wärmepumpe. Leistung und Energie werden gemeinsam gemessen.",
       "spaceHeating": "Raumheizung",
       "domesticHotWater": "Warmwasser",

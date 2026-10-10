@@ -1,62 +1,68 @@
 <template>
 	<div class="mb-3">
+		<h6>{{ $t("main.thermal.title") }}</h6>
 		<p class="small text-muted">{{ $t("main.thermal.sharedPlant") }}</p>
 		<section
 			v-for="fn in functions"
 			:key="fn.kind"
 			:aria-label="$t(`main.thermal.${fn.kind}`)"
-			class="border-top py-3"
+			class="mb-3"
 		>
-			<div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-				<h4 class="h6 mb-0">{{ $t(`main.thermal.${fn.kind}`) }}</h4>
-				<span v-if="fn.active" class="badge bg-success">{{
-					$t("main.thermal.active")
-				}}</span>
-			</div>
-			<div class="mb-2 small" aria-live="polite">
-				{{ $t("main.thermal.currentTarget") }}:
-				<span v-if="fn.target !== undefined">{{ fn.target.toFixed(1) }} °C</span>
-				<span v-else-if="fn.mode">{{ $t(`main.thermal.modes.${fn.mode}`) }}</span>
-				<span v-else>{{ $t("main.thermal.unavailable") }}</span>
-			</div>
-			<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-				<div class="form-check form-switch">
-					<input
-						:id="controlId(fn, 'boost')"
-						type="checkbox"
-						role="switch"
-						class="form-check-input"
-						:checked="fn.requested"
-						:disabled="isBusy(fn) || (!fn.available && !fn.requested)"
-						@change="setBoost(fn, $event)"
-					/>
-					<label class="form-check-label" :for="controlId(fn, 'boost')">{{
-						$t("main.thermal.boost")
-					}}</label>
+			<div class="row mb-2">
+				<div class="col-sm-4">{{ $t(`main.thermal.${fn.kind}`) }}</div>
+				<div class="col-sm-8 d-flex align-items-center gap-2" aria-live="polite">
+					<strong v-if="fn.target !== undefined">{{ fmtTemperature(fn.target) }}</strong>
+					<strong v-else-if="fn.mode">{{ $t(`main.thermal.modes.${fn.mode}`) }}</strong>
+					<span v-else>{{ $t("main.thermal.unavailable") }}</span>
+					<small v-if="fn.active" class="text-evcc">{{
+						$t("main.thermal.active")
+					}}</small>
 				</div>
-				<div v-if="fn.kind === 'spaceHeating'" class="d-flex align-items-center gap-2">
-					<label :for="controlId(fn, 'delta')" class="small">{{
-						$t("main.thermal.delta")
-					}}</label>
+			</div>
+			<div class="row align-items-center mb-2">
+				<label class="col-sm-4 col-form-label pt-0 pt-sm-2" :for="controlId(fn, 'boost')">{{
+					$t("main.thermal.boost")
+				}}</label>
+				<div class="col-sm-8">
+					<div class="form-check form-switch mb-0">
+						<input
+							:id="controlId(fn, 'boost')"
+							type="checkbox"
+							role="switch"
+							class="form-check-input"
+							:checked="fn.requested"
+							:disabled="isBusy(fn) || (!fn.available && !fn.requested)"
+							@change="setBoost(fn, $event)"
+						/>
+					</div>
+				</div>
+			</div>
+			<div v-if="fn.kind === 'spaceHeating'" class="row">
+				<label :for="controlId(fn, 'delta')" class="col-sm-4 col-form-label pt-0 pt-sm-2">{{
+					$t("main.thermal.delta")
+				}}</label>
+				<div class="col-sm-8 col-lg-4 pe-0">
 					<select
 						:id="controlId(fn, 'delta')"
-						class="form-select form-select-sm w-auto"
+						class="form-select form-select-sm"
 						:value="fn.boost.delta"
 						:disabled="configDisabled(fn)"
 						@change="setConfig(fn, $event)"
 					>
 						<option v-for="delta in deltas" :key="delta" :value="delta">
-							+{{ delta.toFixed(1) }} K
+							+{{ fmtNumber(delta, 1) }} K
 						</option>
 					</select>
 				</div>
-				<div v-else class="d-flex align-items-center gap-2">
-					<label :for="controlId(fn, 'mode')" class="small">{{
-						$t("main.thermal.boostMode")
-					}}</label>
+			</div>
+			<div v-else class="row">
+				<label :for="controlId(fn, 'mode')" class="col-sm-4 col-form-label pt-0 pt-sm-2">{{
+					$t("main.thermal.boostMode")
+				}}</label>
+				<div class="col-sm-8 col-lg-4 pe-0">
 					<select
 						:id="controlId(fn, 'mode')"
-						class="form-select form-select-sm w-auto"
+						class="form-select form-select-sm"
 						:value="fn.boost.mode"
 						:disabled="configDisabled(fn)"
 						@change="setConfig(fn, $event)"
@@ -84,9 +90,11 @@
 import { defineComponent, type PropType } from "vue";
 import api from "@/api";
 import type { ThermalFunction } from "@/types/evcc";
+import formatter from "@/mixins/formatter";
 
 export default defineComponent({
 	name: "ThermalFunctions",
+	mixins: [formatter],
 	props: {
 		id: { type: String, required: true },
 		functions: { type: Array as PropType<ThermalFunction[]>, required: true },

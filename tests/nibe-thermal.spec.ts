@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { start, stop, restart, baseUrl } from "./evcc";
 import type { ThermalFunction } from "../assets/js/types/evcc";
+import { expectModalHidden, expectModalVisible } from "./utils";
 
 const CONFIG = "nibe-thermal.evcc.yaml";
 const simulator = "http://127.0.0.1:8080";
@@ -45,21 +46,63 @@ test.describe("NIBE comfort functions", () => {
     await page.goto("/");
     const lp = page.getByTestId("loadpoint");
     await expect(lp).toHaveCount(1);
-    const room = lp.getByRole("region", { name: "Space heating", exact: true });
-    const water = lp.getByRole("region", { name: "Hot water", exact: true });
-    await expect(room).toContainText("21.0 °C");
+    const summary = lp.getByRole("button", { name: "Comfort settings", exact: true });
+    const modal = page.getByTestId("loadpoint-settings-modal");
+    const openSettings = async () => {
+      await summary.click();
+      await expectModalVisible(modal);
+    };
+    const closeSettings = async () => {
+      await Promise.all([
+        modal.evaluate(
+          (element) =>
+            new Promise<void>((resolve) => {
+              element.addEventListener("hidden.bs.modal", () => resolve(), { once: true });
+            })
+        ),
+        modal.getByRole("button", { name: "Close" }).click(),
+      ]);
+      await expectModalHidden(modal);
+    };
+    await expect(summary).toContainText("21.0°C");
+    await expect(summary).toContainText("Medium");
+    await expect(lp.getByRole("switch")).toHaveCount(0);
+    await expect(lp.getByLabel("Boost delta")).toHaveCount(0);
+    await expect(lp.getByLabel("Boost mode")).toHaveCount(0);
+    const screenshots = process.env["NIBE_SCREENSHOTS"];
+    if (screenshots) {
+      mkdirSync(screenshots, { recursive: true });
+      await lp.screenshot({ path: `${screenshots}/nibe-normal.png`, animations: "disabled" });
+    }
+    await openSettings();
+    const room = modal.getByRole("region", { name: "Space heating", exact: true });
+    const water = modal.getByRole("region", { name: "Hot water", exact: true });
+    await expect(room).toContainText("21.0°C");
     await expect(water).toContainText("Medium");
     await expect(room.getByLabel("Boost delta")).toHaveValue("1");
     await expect(water.getByLabel("Boost mode")).toHaveValue("large");
 
-    const screenshots = process.env["NIBE_SCREENSHOTS"];
     if (screenshots) {
-      mkdirSync(screenshots, { recursive: true });
-      await lp.screenshot({ path: `${screenshots}/nibe-normal.png` });
+      await modal.screenshot({ path: `${screenshots}/nibe-settings.png`, animations: "disabled" });
+      const heading = await modal
+        .getByRole("heading", { name: "Comfort", exact: true })
+        .boundingBox();
+      const lastFunction = await water.boundingBox();
+      if (!heading || !lastFunction) throw new Error("Comfort controls unavailable for screenshot");
+      await page.screenshot({
+        path: `${screenshots}/nibe-controls.png`,
+        animations: "disabled",
+        clip: {
+          x: heading.x,
+          y: heading.y,
+          width: heading.width,
+          height: lastFunction.y + lastFunction.height - heading.y,
+        },
+      });
     }
 
     await room.getByRole("switch", { name: "Comfort boost" }).check();
-    await expect(room).toContainText("22.0 °C");
+    await expect(room).toContainText("22.0°C");
     expect((await effective()).dhw.normal_mode).toBe("medium");
     await water.getByRole("switch", { name: "Comfort boost" }).check();
     await expect(water).toContainText("Large");
@@ -68,15 +111,31 @@ test.describe("NIBE comfort functions", () => {
     expect((await functions()).every((fn) => fn.active)).toBe(true);
     expect((await state()).loadpoints).toHaveLength(1);
     expect((await functions()).some((fn) => "power" in fn || "energy" in fn)).toBe(false);
+    await closeSettings();
+    await expect(summary).toContainText("22.0°C");
+    await expect(summary).toContainText("Large");
+    await expect(summary).toContainText("Boost active");
     if (screenshots) {
-      await lp.screenshot({ path: `${screenshots}/nibe-both-boosts.png` });
+      await lp.screenshot({ path: `${screenshots}/nibe-both-boosts.png`, animations: "disabled" });
       await page.setViewportSize({ width: 390, height: 1000 });
-      await page.screenshot({ path: `${screenshots}/nibe-mobile.png`, fullPage: true });
+      await expect(page.getByTestId("tab-more")).toBeInViewport();
+      await page.screenshot({
+        path: `${screenshots}/nibe-mobile.png`,
+        fullPage: true,
+        animations: "disabled",
+      });
       await page.setViewportSize({ width: 1400, height: 1100 });
+    }
+    await openSettings();
+    if (screenshots) {
+      await modal.screenshot({
+        path: `${screenshots}/nibe-settings-active.png`,
+        animations: "disabled",
+      });
     }
 
     await room.getByRole("switch", { name: "Comfort boost" }).uncheck();
-    await expect(room).toContainText("21.0 °C");
+    await expect(room).toContainText("21.0°C");
     expect((await effective()).dhw.normal_mode).toBe("large");
     await water.getByRole("switch", { name: "Comfort boost" }).uncheck();
     await expect(water).toContainText("Medium");
@@ -84,9 +143,13 @@ test.describe("NIBE comfort functions", () => {
     await room.getByLabel("Boost delta").selectOption("1.5");
     await expect(room.getByLabel("Boost delta")).toHaveValue("1.5");
     await boost("spaceHeating", true);
-    await expect(room).toContainText("22.5 °C");
+    await expect(room).toContainText("22.5°C");
     write(206, 200);
     await expect(room).toContainText("Target changed externally");
+    await closeSettings();
+    await expect(summary).toContainText("Target changed");
+    await expect(summary).not.toContainText("Boost active");
+    await openSettings();
     await boost("spaceHeating", true);
     expect((await effective()).room.normal_setpoint_c).toBe(20);
     await boost("spaceHeating", false);
@@ -114,7 +177,8 @@ test.describe("NIBE comfort functions", () => {
     await boost("domesticHotWater", true);
     instance = await restart(CONFIG);
     await page.reload();
-    await expect(room).toContainText("21.0 °C");
+    await openSettings();
+    await expect(room).toContainText("21.0°C");
     await expect(water).toContainText("Medium");
     await expect(room.getByLabel("Boost delta")).toHaveValue("1.5");
     expect((await functions()).every((fn) => !fn.active && !fn.requested)).toBe(true);
@@ -156,13 +220,34 @@ test.describe("NIBE comfort functions", () => {
 
     await page.setViewportSize({ width: 390, height: 1000 });
     await page.goto("/?lang=de");
-    await expect(lp.getByRole("region", { name: "Raumheizung", exact: true })).toBeVisible();
-    await expect(lp.getByRole("region", { name: "Warmwasser", exact: true })).toBeVisible();
+    const germanSummary = lp.getByRole("button", { name: "Komforteinstellungen", exact: true });
+    await expect(germanSummary).toContainText("Raumheizung");
+    await expect(germanSummary).toContainText("Warmwasser");
+    await expect(germanSummary).toContainText("21,0 °C");
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
     ).toBe(true);
     if (screenshots) {
-      await page.screenshot({ path: `${screenshots}/nibe-mobile-de.png`, fullPage: true });
+      await expect(page.getByTestId("tab-more")).toBeInViewport();
+      await page.screenshot({
+        path: `${screenshots}/nibe-mobile-de.png`,
+        fullPage: true,
+        animations: "disabled",
+      });
+    }
+    await germanSummary.click();
+    await expectModalVisible(modal);
+    await expect(modal.getByRole("region", { name: "Raumheizung", exact: true })).toBeVisible();
+    await expect(modal.getByRole("region", { name: "Warmwasser", exact: true })).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    ).toBe(true);
+    if (screenshots) {
+      await page.screenshot({
+        path: `${screenshots}/nibe-settings-mobile-de.png`,
+        fullPage: true,
+        animations: "disabled",
+      });
     }
   });
 });

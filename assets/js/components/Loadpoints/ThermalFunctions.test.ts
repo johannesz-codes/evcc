@@ -50,7 +50,7 @@ describe("thermal controls", () => {
   test("shared plant and independent targets", () => {
     const wrapper = render();
     expect(wrapper.text()).toContain("Power and energy are measured together");
-    expect(wrapper.text()).toContain("21.0 °C");
+    expect(wrapper.text()).toContain("21.0°C");
     expect(wrapper.text()).toContain("Medium");
     expect(wrapper.findAll("[role=switch]")).toHaveLength(2);
     expect(wrapper.findAll("option").map((option) => option.text())).not.toContain("Not in use");

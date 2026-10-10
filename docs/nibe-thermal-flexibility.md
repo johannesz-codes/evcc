@@ -2,8 +2,8 @@
 
 One SMO S40 / F2120 remains one charger, one heating loadpoint, and one physical
 power/energy meter. Its space-heating and domestic-hot-water functions are optional
-comfort controls inside the existing heating card. They do not create loadpoints,
-meters, sessions, electrical capacities, or optimizer battery entries.
+comfort controls in the existing heating loadpoint's settings. They do not create
+loadpoints, meters, sessions, electrical capacities, or optimizer battery entries.
 
 ## Architecture and control
 
@@ -69,12 +69,15 @@ must already be configured on the NIBE. This PoC does not configure SRC or verif
 the real device's model/firmware register export.
 
 The physical heating loadpoint's Normal/Smart/Boost controls retain their existing
-SG Ready meaning. The new Space heating and Hot water sections act independently.
-Their current targets, request switches, parameters, and active indicators are
-shown below the single shared power/energy display. Boost parameters can be edited
-while the function is idle; settings survive restarts.
+SG Ready meaning. A compact summary below the shared power/energy display shows
+the room target, hot-water mode, and active or recovery status. Click the summary
+or the existing settings button to open the loadpoint settings dialog. Its Comfort
+section contains independent Space heating and Hot water switches, boost
+parameters, and detailed recovery messages. It uses the same form layout as the
+established settings. Boost parameters can be edited while the function is idle;
+settings survive restarts.
 
-Normal comfort targets:
+Compact card with normal comfort targets:
 
 ![Normal room and hot-water targets](images/nibe-normal.png)
 
@@ -82,7 +85,15 @@ Both independent requests active, with one shared power reading:
 
 ![Room and hot-water boosts active](images/nibe-both-boosts.png)
 
-[Mobile view](images/nibe-mobile.png) uses the same heating card and controls.
+Comfort controls in the existing settings dialog:
+
+![Comfort controls](images/nibe-controls.png)
+
+[Full settings dialog](images/nibe-settings.png), [settings with both boosts active](images/nibe-settings-active.png),
+[mobile card](images/nibe-mobile.png),
+[German mobile card](images/nibe-mobile-de.png),
+and [German mobile settings](images/nibe-settings-mobile-de.png) show the responsive
+layout. Parameters and switches stay in the dialog on small screens as well.
 
 ## Examples and optimizer boundary
 

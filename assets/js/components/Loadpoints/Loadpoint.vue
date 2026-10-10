@@ -93,7 +93,11 @@
 			<LoadpointSessionInfo v-bind="sessionInfoProps" />
 		</div>
 		<hr class="divider" />
-		<ThermalFunctions v-if="thermal?.length" :id="id" :functions="thermal" />
+		<ThermalSummary
+			v-if="thermal?.length"
+			:functions="thermal"
+			@open-settings="openSettingsModal"
+		/>
 		<Vehicle
 			class="flex-grow-1 d-flex flex-column justify-content-end"
 			v-bind="vehicleProps"
@@ -123,7 +127,7 @@ import SettingsButton from "./SettingsButton.vue";
 import SettingsModal from "./SettingsModal.vue";
 import VehicleIcon from "../VehicleIcon";
 import SessionInfo from "./SessionInfo.vue";
-import ThermalFunctions from "./ThermalFunctions.vue";
+import ThermalSummary from "./ThermalSummary.vue";
 import { defineComponent, type PropType } from "vue";
 import type {
 	CHARGE_MODE,
@@ -152,7 +156,7 @@ export default defineComponent({
 		LoadpointSettingsButton: SettingsButton,
 		LoadpointSessionInfo: SessionInfo,
 		VehicleIcon,
-		ThermalFunctions,
+		ThermalSummary,
 	},
 	mixins: [formatter, collector],
 	props: {

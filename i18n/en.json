@@ -1787,6 +1787,11 @@
     "vehicles": "Parking",
     "welcome": "Hello aboard!",
     "thermal": {
+      "title": "Comfort",
+      "settings": "Comfort settings",
+      "changed": "Target changed",
+      "restoring": "Restoration pending",
+      "requested": "Boost requested",
       "sharedPlant": "Comfort functions of one heat pump. Power and energy are measured together.",
       "spaceHeating": "Space heating",
       "domesticHotWater": "Hot water",
