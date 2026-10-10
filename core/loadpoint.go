@@ -23,6 +23,7 @@ import (
 	"github.com/evcc-io/evcc/core/settings"
 	"github.com/evcc-io/evcc/core/site"
 	"github.com/evcc-io/evcc/core/soc"
+	"github.com/evcc-io/evcc/core/thermal"
 	"github.com/evcc-io/evcc/core/wrapper"
 	"github.com/evcc-io/evcc/messenger"
 	"github.com/evcc-io/evcc/util"
@@ -142,6 +143,7 @@ type Loadpoint struct {
 	vehicleIdentifier   string
 
 	charger          api.Charger
+	thermal          *thermal.Controller
 	chargeTimer      api.ChargeTimer
 	chargeRater      api.ChargeRater
 	chargedAtStartup float64 // session energy at startup
@@ -287,6 +289,12 @@ func NewLoadpointFromConfig(log *util.Logger, settings settings.Settings, collec
 	lp.DefaultMode, _ = lp.normalizeMode(lp.DefaultMode)
 
 	lp.configureChargerType(lp.charger)
+	if device, ok := api.Cap[api.ThermalDevice](lp.charger); ok {
+		lp.thermal, err = thermal.New(device, thermal.DatabaseStore(lp.ChargerRef))
+		if err != nil {
+			return lp, fmt.Errorf("thermal: %w", err)
+		}
+	}
 	// add collector
 	if lp.chargeMeter != nil && collector != nil {
 		lp.chargeEnergy = collector
@@ -760,6 +768,7 @@ func (lp *Loadpoint) Prepare(site site.API, uiChan chan<- util.Param, pushChan c
 
 	// restore settings
 	lp.restoreSettings()
+	lp.publishThermal()
 
 	// publish initial values
 	lp.publish(keys.Title, lp.GetTitle())
@@ -2352,6 +2361,7 @@ func (lp *Loadpoint) Update(sitePower, batteryPower float64, consumption, feedin
 
 	// long-running tasks
 	lp.processTasks()
+	lp.publishThermal()
 
 	// read and publish meters first- charge power and currents have already been updated by the site
 	lp.updateChargeVoltages()

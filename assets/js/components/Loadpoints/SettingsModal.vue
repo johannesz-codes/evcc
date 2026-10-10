@@ -9,6 +9,12 @@
 		@closed="modalInvisible"
 	>
 		<div class="container">
+			<ThermalFunctions
+				v-if="id && loadpoint?.thermal?.length"
+				:key="id"
+				:id="id"
+				:functions="loadpoint.thermal"
+			/>
 			<SmartCostLimit
 				:current-limit="loadpoint?.smartCostLimit ?? null"
 				:last-limit="loadpoint?.lastSmartCostLimit"
@@ -202,6 +208,7 @@ import SmartCostLimit from "../Tariff/SmartCostLimit.vue";
 import SmartFeedInPriority from "../Tariff/SmartFeedInPriority.vue";
 import SettingsBatteryBoost from "./SettingsBatteryBoost.vue";
 import SolarShareSlider from "./SolarShareSlider.vue";
+import ThermalFunctions from "./ThermalFunctions.vue";
 import { defineComponent, type PropType } from "vue";
 import { PHASES, CURRENCY, SMART_COST_TYPE, type UiForecast, type UiLoadpoint } from "@/types/evcc";
 import api from "@/api";
@@ -228,6 +235,7 @@ export default defineComponent({
 		SmartFeedInPriority,
 		LoadpointSettingsBatteryBoost: SettingsBatteryBoost,
 		SolarShareSlider,
+		ThermalFunctions,
 	},
 	mixins: [formatter, collector],
 	props: {

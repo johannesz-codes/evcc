@@ -1785,7 +1785,39 @@
       "welcome": "Short initial charge to confirm connection."
     },
     "vehicles": "Parking",
-    "welcome": "Hello aboard!"
+    "welcome": "Hello aboard!",
+    "thermal": {
+      "roomTemperature": "Room temperature",
+      "normalTarget": "Normal target",
+      "boostTarget": "Boost target",
+      "temperatures": "Temperatures",
+      "updating": "Target update pending",
+      "pendingTargetUpdate": "Temperature update pending. Please wait.",
+      "invalidTargets": "Choose a boost target above normal and within the temperature range.",
+      "title": "Comfort",
+      "settings": "Comfort settings",
+      "changed": "Target changed",
+      "restoring": "Restoration pending",
+      "requested": "Boost requested",
+      "sharedPlant": "Comfort functions of one heat pump. Power and energy are measured together.",
+      "spaceHeating": "Space heating",
+      "domesticHotWater": "Hot water",
+      "currentTarget": "Current target",
+      "boost": "Comfort boost",
+      "delta": "Boost delta",
+      "boostMode": "Boost mode",
+      "active": "Boost active",
+      "ownershipLost": "Target changed externally. Clear the boost request before starting another boost.",
+      "pendingRestore": "Restoration pending. Normal comfort will be restored when the device is available.",
+      "unavailable": "Device unavailable",
+      "modes": {
+        "small": "Small",
+        "medium": "Medium",
+        "large": "Large",
+        "notInUse": "Not in use",
+        "smartControl": "Smart control"
+      }
+    }
   },
   "notifications": {
     "dismissAll": "Dismiss all",

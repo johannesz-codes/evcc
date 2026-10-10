@@ -93,6 +93,12 @@
 			<LoadpointSessionInfo v-bind="sessionInfoProps" />
 		</div>
 		<hr class="divider" />
+		<ThermalSummary
+			v-if="thermal?.length"
+			:functions="thermal"
+			@open-settings="openSettingsModal"
+		/>
+		<ThermalTargets v-if="spaceHeating" :id="id" :fn="spaceHeating" />
 		<Vehicle
 			class="flex-grow-1 d-flex flex-column justify-content-end"
 			v-bind="vehicleProps"
@@ -122,6 +128,8 @@ import SettingsButton from "./SettingsButton.vue";
 import SettingsModal from "./SettingsModal.vue";
 import VehicleIcon from "../VehicleIcon";
 import SessionInfo from "./SessionInfo.vue";
+import ThermalSummary from "./ThermalSummary.vue";
+import ThermalTargets from "./ThermalTargets.vue";
 import { defineComponent, type PropType } from "vue";
 import type {
 	CHARGE_MODE,
@@ -137,6 +145,7 @@ import type {
 	LoadpointUi,
 	PlanStrategy,
 	LoadpointSuggestion,
+	ThermalFunction,
 } from "@/types/evcc";
 
 export default defineComponent({
@@ -149,6 +158,8 @@ export default defineComponent({
 		LoadpointSettingsButton: SettingsButton,
 		LoadpointSessionInfo: SessionInfo,
 		VehicleIcon,
+		ThermalSummary,
+		ThermalTargets,
 	},
 	mixins: [formatter, collector],
 	props: {
@@ -187,6 +198,7 @@ export default defineComponent({
 		chargerFeatureContinuous: Boolean,
 		chargerFeatureSwitchDevice: Boolean,
 		chargerIcon: String as PropType<string | null>,
+		thermal: Array as PropType<ThermalFunction[]>,
 
 		// heating display range (ui-only)
 		ui: Object as PropType<LoadpointUi>,
@@ -283,6 +295,9 @@ export default defineComponent({
 		};
 	},
 	computed: {
+		spaceHeating() {
+			return this.thermal?.find((fn) => fn.kind === "spaceHeating");
+		},
 		expandLoadpointHeader() {
 			return this.multipleLoadpoints && !this.fullWidth;
 		},

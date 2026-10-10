@@ -1785,7 +1785,39 @@
       "welcome": "Kurze initiale Ladung zur Bestätigung der Verbindung."
     },
     "vehicles": "Parkplatz",
-    "welcome": "Herzlich willkommen!"
+    "welcome": "Herzlich willkommen!",
+    "thermal": {
+      "roomTemperature": "Raumtemperatur",
+      "normalTarget": "Normaler Sollwert",
+      "boostTarget": "Boost-Sollwert",
+      "temperatures": "Temperaturen",
+      "updating": "Sollwertaktualisierung ausstehend",
+      "pendingTargetUpdate": "Sollwertaktualisierung ausstehend. Bitte warten.",
+      "invalidTargets": "Wähle einen Boost-Sollwert oberhalb des normalen Sollwerts und innerhalb des Temperaturbereichs.",
+      "title": "Komfort",
+      "settings": "Komforteinstellungen",
+      "changed": "Sollwert geändert",
+      "restoring": "Wiederherstellung ausstehend",
+      "requested": "Boost angefordert",
+      "sharedPlant": "Komfortfunktionen einer Wärmepumpe. Leistung und Energie werden gemeinsam gemessen.",
+      "spaceHeating": "Raumheizung",
+      "domesticHotWater": "Warmwasser",
+      "currentTarget": "Aktueller Sollwert",
+      "boost": "Komfort-Boost",
+      "delta": "Anhebung",
+      "boostMode": "Boostmodus",
+      "active": "Boost aktiv",
+      "ownershipLost": "Sollwert extern geändert. Boost-Anforderung ausschalten, bevor ein neuer Boost gestartet wird.",
+      "pendingRestore": "Wiederherstellung ausstehend. Der normale Komfort wird wiederhergestellt, sobald das Gerät erreichbar ist.",
+      "unavailable": "Gerät nicht erreichbar",
+      "modes": {
+        "small": "Klein",
+        "medium": "Mittel",
+        "large": "Groß",
+        "notInUse": "Nicht in Betrieb",
+        "smartControl": "Smart Control"
+      }
+    }
   },
   "notifications": {
     "dismissAll": "Meldungen entfernen",

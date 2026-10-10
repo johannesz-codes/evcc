@@ -1,0 +1,283 @@
+# NIBE comfort flexibility proof of concept
+
+One SMO S40 / F2120 remains one charger, one heating loadpoint, and one physical
+power/energy meter. Its space-heating and domestic-hot-water functions are optional
+comfort controls in the existing heating loadpoint. They do not create
+loadpoints, meters, sessions, electrical capacities, or optimizer battery entries.
+
+## Architecture and control
+
+The existing NIBE template still constructs the generic SG Ready charger. When
+enabled, it also supplies a generic `api.ThermalDevice` capability with unmetered
+`api.ThermalFunction` targets. The existing plugin layer shares the Modbus
+connection. The core thermal controller handles ownership, independent boost
+requests, validation, and recovery; it knows no NIBE addresses.
+
+NIBE-specific mappings stay in the template:
+
+| Function | Direct target | Boost |
+| --- | --- | --- |
+| Space heating | Holding 206, signed int16, tenths of °C | Configured absolute target, or the initial relative delta |
+| Hot water | Holding 56, modes 0 through 4 | Select medium or large temporarily |
+
+Normal DHW modes small, medium, large, not in use, and smart control are displayed
+by name. The last two cannot be selected as boost modes. Room targets must remain
+between 5 and 30 °C. The boost target is above normal by 0.1 through 5 K, in 0.1 K
+increments. The main-card space-heating slider shows a fixed 15 to 30 °C scale.
+The device/API range remains 5 to 30 °C. Targets outside the supported device
+range fail without a write. No room-temperature feedback controller,
+supply-temperature override, or compressor-frequency control is introduced.
+
+Direct requests never call charger `Enable`, `Dimm`, or `MaxCurrent`. SG Ready
+continues to use 6008 and status 1911; existing power control uses 6007 and 2741.
+Neither direct function uses AUX selection 2740 or writes AUX state 2741. Legacy
+SG Ready can still influence the shared plant, as it did before this change.
+
+All power and energy flow through the parent's existing meter and site accounting.
+The logical function state deliberately has no electrical measurements. Enabling
+both requests cannot add another contribution to site power. A future optimizer
+must also respect the shared compressor when allocating physical power.
+
+## Configuration
+
+Add the optional parameters to the existing charger, and reference it from exactly
+one heating loadpoint:
+
+```yaml
+chargers:
+  - name: nibe
+    type: template
+    template: nibe-s-series
+    host: 127.0.0.1
+    port: 5020
+    id: 1
+    tempsource: water_mid
+    powercontrol: true
+    roomcontrol: true
+    roomboost: 1
+    dhwcontrol: true
+    dhwboost: large
+
+loadpoints:
+  - title: NIBE heat pump
+    charger: nibe
+    mode: off
+```
+
+The address above is the simulator only. Existing configurations require no
+changes: both new capabilities default to disabled. Enabling them exposes
+controls, but does not request a boost. Smart Room Comfort and room sensor control
+must already be configured on the NIBE. This PoC does not configure SRC or verify
+the real device's model/firmware register export.
+
+The physical heating loadpoint's Normal/Smart/Boost controls retain their existing
+SG Ready meaning. The card has a separate space-heating slider above the existing
+water-temperature slider. Its two editable, keyboard-accessible handles select
+Normal target and Boost target on a 15 to 30 °C scale. It uses the same wide
+thermometer bar, temperature colors, and tall handles as the water control. The
+boost handle and its target label are red to distinguish them from the normal
+setpoint. The existing water slider, temperature reading, and limit selector are
+unchanged.
+Dragging commits on release; handles cannot cross or exceed the 5 K gap.
+
+The room bar shows the measured BT50 temperature from input 26, signed int16,
+scaled by 0.1 °C. The filled portion and Room temperature readout use this sensor
+value, independently of the setpoint and boost handles. A missing, failed, or
+invalid reading is omitted rather than replaced with a target. Sensor failure
+does not block otherwise available target control. This is a display, not a new
+room-temperature feedback loop.
+
+With boost off, moving the normal handle writes the NIBE room setpoint; moving the
+upper handle only stores the boost temperature. During an owned boost, the upper
+handle changes its active target and the normal handle changes the value restored
+afterwards. Both remain editable. Unavailable devices, external overrides, and
+pending recovery disable edits. An external normal target outside the UI scale is still
+shown accurately in the labels; opening the card never writes it. Editing the
+slider explicitly selects a pair within the displayed scale.
+
+A compact summary below the shared power/energy display shows room and hot-water
+targets and active or recovery status. Click it or the existing settings button to
+open the loadpoint settings dialog. Its Comfort section retains the independent
+Space heating and Hot water boost switches, the idle hot-water boost-mode selector,
+and detailed recovery messages. Temperature handles live on the main card.
+
+The template's `roomboost` supplies the initial relative delta. The first slider
+edit selects a fixed upper temperature, saved across restarts. An external normal
+setpoint change updates the lower handle without moving that upper temperature.
+If normal is already at or above the upper target, a boost never lowers it or
+acquires ownership. The normal target is read from NIBE or the owned restoration
+record; it is not continually enforced over other controllers.
+
+Heating card with separate room and water sliders:
+
+![Normal room and hot-water targets](images/nibe-normal.png)
+
+Both independent requests active, with one shared power reading:
+
+![Room and hot-water boosts active](images/nibe-both-boosts.png)
+
+Boost switches and recovery details in the existing settings dialog:
+
+![Comfort controls](images/nibe-controls.png)
+
+[Full settings dialog](images/nibe-settings.png), [settings with both boosts active](images/nibe-settings-active.png),
+[mobile card](images/nibe-mobile.png),
+[German mobile card](images/nibe-mobile-de.png),
+and [German mobile settings](images/nibe-settings-mobile-de.png) show the responsive
+layout. Both temperature handles stay on the card on small screens; boost switches
+and hot-water mode selection remain in settings.
+
+## Examples and optimizer boundary
+
+At a normal room target of 21 °C, request a +1 K room boost during an attractive
+electricity period. The device target becomes 22 °C, while NIBE/SRC still decides
+whether to heat, the supply temperature, and compressor operation. Remove the
+request afterwards to return to 21 °C. An expensive period removes preload; this
+path never disables normal heating.
+
+Alternatively, set the slider to normal 20.9 °C and boost 22.1 °C. The idle device
+uses 20.9 °C. Enabling boost writes 22.1 °C. While it is active, select normal
+20.8 °C and boost 22.2 °C: the device uses 22.2 °C, then restores 20.8 °C when the
+request is removed. Selecting a higher normal temperature intentionally changes
+normal comfort, independently of requesting preload. The measured room value may
+still be 20 °C while either target is selected; the bar shows that measurement
+separately rather than claiming the room has already reached the target.
+
+Independently, request a hot-water boost from medium to large, then remove it to
+restore medium. Room and DHW requests may both be active. A caller can request just
+one, remove either, and leave the other untouched.
+
+This PoC supports manual UI control and the following generic API. It does not
+automatically schedule either function by electricity price:
+
+```text
+GET  /api/loadpoints/1/thermal
+POST /api/loadpoints/1/thermal/spaceHeating/boost/true
+POST /api/loadpoints/1/thermal/spaceHeating/boost/false
+POST /api/loadpoints/1/thermal/spaceHeating/config {"delta":1.5}
+POST /api/loadpoints/1/thermal/spaceHeating/targets {"normal":20.9,"boost":22.1}
+POST /api/loadpoints/1/thermal/domesticHotWater/boost/true
+POST /api/loadpoints/1/thermal/domesticHotWater/config {"mode":"large"}
+```
+
+State is also published as `loadpoints[].thermal` through the existing state API
+and WebSocket. `requested` is caller intent; `active` means the device still holds
+an owned boost value. They differ after external changes, during restoration, or
+when DHW was already in the requested mode. `available`, `ownershipLost`, and
+`pendingRestore` explain these cases. Mode/target readings are absent when a read
+fails, avoiding a stale value being shown as current.
+
+Numeric functions also expose `normalTarget`, `boostTarget`, and a `range` with
+`min`, `max`, and `step`. The optional `temperature` field is a measured sensor
+value supplied through `api.ThermalTemperature`; it is absent when unavailable.
+`target` remains the current physical setpoint, so it is the boost temperature
+while active. `pendingTargetUpdate` reports an interrupted
+normal-setpoint edit awaiting reconciliation. The existing `/config` API still
+accepts idle relative deltas and also accepts `{"target":22.1}` for a fixed boost
+temperature. A fixed target and a delta are mutually exclusive.
+
+The optimizer currently represents batteries and EV charging goals. It does not
+have a comfort or thermal-storage model suitable for these functions. Its future
+integration point is `loadpoint.API.SetThermalBoost(kind, bool)` and independent
+`SetThermalBoostConfig` values. Separate price policies can call those methods
+without Modbus knowledge. Electrical-storage "stop" suggestions must not be
+translated into turning off normal room heating. Thermal state estimation,
+comfort bounds, forecast-driven scheduling, and joint compressor constraints need
+agreement before extending the optimizer. No optimizer refactor is included.
+
+Preload may move some heating to cheaper periods and the independent controls make
+comfort choices clearer. The simulator does not model building response, DHW heat
+storage, COP, or target-driven compressor demand, so no energy saving, cost saving,
+or real thermal performance improvement is claimed.
+
+## Ownership and restart recovery
+
+Each function is serialized by the core controller. Before writing, evcc reads the
+current value and records its baseline and intended boost in the existing settings
+database, flushing the record before the device write. Settings are scoped by the
+stable charger reference and function kind. A hash of the getter/setter connection
+configuration binds an ownership record to its target.
+
+When removing a boost, evcc reads again and restores the baseline only when the
+current value equals the value it wrote. For example, after 21 -> 22, a manual
+change to 20 loses ownership; removing the request leaves 20 untouched. Polling
+detects changes while a request is active and blocks further acquisition until the
+request is cleared. Repeated true requests cannot accumulate the room delta.
+
+If DHW was already in the selected mode, evcc makes no write and takes no ownership.
+A subsequent manual change is left untouched until a new off/on request.
+
+After restart, evcc loads ownership records but never resumes boost requests. It
+conditionally restores previous baselines. Unavailable reads or failed restoration
+writes retain the record and are retried by the normal update loop. An interrupted
+or failed boost write retains its prewritten ownership record: if the write took
+effect but its acknowledgement was lost, evcc can remove it safely; if it did not
+take effect, the unchanged baseline causes the record to be released without a
+write. A persistence failure prevents a new device write.
+
+An idle normal-setpoint edit records the proposed normal/boost pair before writing.
+After an interrupted or ambiguous write, recovery reads the device without
+repeating the write. It commits the paired upper temperature only if the normal
+write is observed; another value is preserved and the pending edit is discarded.
+An active edit journals its new restoration value and both possible boost values
+before writing. A failed active edit cancels the request and conditionally restores
+the selected normal value. After acknowledgement, the previous boost value is
+released, so a subsequent external change to it is preserved.
+
+An invalid record or changed connection identity with pending ownership prevents
+controller initialization instead of applying a stale baseline to another device.
+Clear boosts and finish restoration before changing connection settings, renaming
+the charger, disabling a function in configuration, or deleting the database. If
+the record/database is absent, evcc adopts the current device target as normal and
+cannot infer a previous boost. Database backups also carry the ownership records.
+
+Modbus offers no compare-and-swap for these registers. A manual change to exactly
+the same value is indistinguishable from evcc's write. A change between the final
+read and restoration write cannot be detected atomically. This implementation
+protects observed later changes; it cannot promise transactional coordination with
+other writers. Coordinate external target automation when that stronger guarantee
+is required. A thermal controller also cannot restore anything while evcc is down.
+
+## Simulator validation
+
+Only the read-only main branch of
+[johannesz-codes/nibe-sim](https://github.com/johannesz-codes/nibe-sim) is used.
+The exercised contract is commit `eaf9fa2f3bc0c79a3f4c3556c80475606dd13a86`.
+It exposes Modbus on 127.0.0.1:5020 with device ID 1, HTTP state/events on
+127.0.0.1:8080, and POST /reset. No real NIBE or home infrastructure is contacted.
+
+With the simulator running and its Python dependencies installed:
+
+```sh
+make ui build
+NIBE_SIM=1 NIBE_SIM_PYTHON=/path/to/nibe-sim/venv/bin/python \
+  vpx playwright test tests/nibe-thermal.spec.ts --workers=1
+```
+
+The test uses the actual rendered NIBE template, evcc binary, browser controls,
+state API, simulator state, event history, and direct external Modbus writes. It
+covers room 21 -> 22 -> 21, medium -> large -> medium, independent/simultaneous
+requests, manual changes, parameter editing/persistence, normal and hard restarts,
+and both slider handles through keyboard, mouse, and mobile touch input. It also
+covers active target edits, SG Ready and power-limit coexistence, and shared plant
+accounting. With 5000 W grid
+power and one 4500 W plant, home power remains 500 W with both functions enabled.
+The simulator event history verifies that AUX selection 2740 is never written.
+
+Core unit tests additionally cover connection loss during restore, restoration
+write failures, rejected/ambiguous enable writes, settings persistence failures,
+corrupt ownership, device identity changes, repeated requests, and already-large
+DHW. Target-edit tests cover ambiguous normal writes, active edits, journal save
+failures, external changes during recovery, and the device's temperature precision.
+API tests cover state serialization, device errors, and malformed parameters.
+Template tests cover all four opt-in combinations and existing SG Ready registers.
+The simulator's own suite remains unchanged.
+
+## Questions for upstream maintainers
+
+Discuss the generic comfort-target capability, persisted ownership lifecycle and
+device identity, the parent heating-card presentation, and suitable thermal price
+policies. Verify the real SMO S40 register export and firmware bounds, SRC
+prerequisites, and simultaneous physical room/DHW scheduling before recommending
+deployment. The simulator proves control contracts and accounting, not hardware
+timing, compressor arbitration, or efficiency.

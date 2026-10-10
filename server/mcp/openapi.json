@@ -481,6 +481,231 @@
         }
       }
     },
+    "/loadpoints/{id}/thermal": {
+      "get": {
+        "operationId": "getLoadpointThermalFunctions",
+        "summary": "Get thermal comfort functions",
+        "description": "Independent, unmetered comfort functions sharing one physical loadpoint.",
+        "tags": [
+          "loadpoints"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Comfort function states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "nullable": true,
+                  "items": {
+                    "$ref": "#/components/schemas/ThermalFunction"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/loadpoints/{id}/thermal/{kind}/boost/{enabled}": {
+      "post": {
+        "operationId": "setLoadpointThermalBoost",
+        "summary": "Set temporary comfort boost",
+        "description": "Adds or removes comfort preload. Removes only an owned target, preserving later external changes. Normal space heating remains active.",
+        "tags": [
+          "loadpoints"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "spaceHeating",
+                "domesticHotWater"
+              ]
+            }
+          },
+          {
+            "name": "enabled",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Updated comfort function states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThermalFunction"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Function unavailable, device error, or invalid request"
+          }
+        }
+      }
+    },
+    "/loadpoints/{id}/thermal/{kind}/config": {
+      "post": {
+        "operationId": "setLoadpointThermalBoostConfig",
+        "summary": "Set idle comfort boost parameters",
+        "description": "Changes boost parameters after the previous boost and restoration have finished.",
+        "tags": [
+          "loadpoints"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "spaceHeating",
+                "domesticHotWater"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delta": {
+                    "type": "number",
+                    "minimum": 0.1,
+                    "maximum": 5,
+                    "description": "Positive room comfort preload in K"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "description": "Supported hot water boost mode"
+                  },
+                  "target": {
+                    "type": "number",
+                    "description": "Absolute room boost temperature, mutually exclusive with delta"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated comfort function states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThermalFunction"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid parameters, active boost, or pending restoration"
+          }
+        }
+      }
+    },
+    "/loadpoints/{id}/thermal/{kind}/targets": {
+      "post": {
+        "operationId": "setLoadpointThermalTargets",
+        "summary": "Set normal and boost temperatures",
+        "description": "Sets normal comfort and an absolute boost target. During an owned boost, updates the active target and the normal value restored afterwards. External changes and pending recovery block edits.",
+        "tags": [
+          "loadpoints"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "spaceHeating"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "normal",
+                  "boost"
+                ],
+                "properties": {
+                  "normal": {
+                    "type": "number",
+                    "description": "Normal room setpoint in degrees Celsius"
+                  },
+                  "boost": {
+                    "type": "number",
+                    "description": "Absolute boost setpoint, above normal by at most 5 K"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated comfort function states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThermalFunction"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid temperatures, external changes, pending recovery, or device error"
+          }
+        }
+      }
+    },
     "/loadpoints/{id}/alwayscharge/{alwaysCharge}": {
       "post": {
         "operationId": "setLoadpointAlwaysCharge",
@@ -3394,6 +3619,109 @@
           "discharge"
         ]
       },
+      "ThermalFunction": {
+        "description": "Unmetered comfort function sharing its parent loadpoint's physical plant.",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "spaceHeating",
+              "domesticHotWater"
+            ]
+          },
+          "boost": {
+            "type": "object",
+            "properties": {
+              "delta": {
+                "type": "number"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "target": {
+                "type": "number"
+              }
+            }
+          },
+          "requested": {
+            "type": "boolean"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "ownershipLost": {
+            "type": "boolean"
+          },
+          "pendingRestore": {
+            "type": "boolean"
+          },
+          "target": {
+            "type": "number"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "normalTarget": {
+            "type": "number"
+          },
+          "boostTarget": {
+            "type": "number"
+          },
+          "range": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "step": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "min",
+              "max",
+              "step"
+            ]
+          },
+          "pendingTargetUpdate": {
+            "type": "boolean"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "boostModes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "boost",
+          "requested",
+          "active",
+          "available",
+          "ownershipLost",
+          "pendingRestore"
+        ]
+      },
       "AlwaysCharge": {
         "description": "Always charge state. Smart mode charges continuously at least at minimum power.",
         "type": "string",
@@ -3552,6 +3880,13 @@
         "description": "A charging location with a charger, an optional dedicated meter and an optional vehicle.",
         "type": "object",
         "properties": {
+          "thermal": {
+            "description": "Independent comfort functions. Power and energy belong to this loadpoint only.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ThermalFunction"
+            }
+          },
           "name": {
             "description": "Unique loadpoint identifier used in API routes and configuration.",
             "type": "string"

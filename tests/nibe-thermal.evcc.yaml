@@ -1,0 +1,30 @@
+network:
+  host: 127.0.0.1
+interval: 1s
+site:
+  title: NIBE comfort flexibility
+  meters:
+    grid: grid
+meters:
+  - name: grid
+    type: custom
+    power:
+      source: const
+      value: 5000
+chargers:
+  - name: nibe
+    type: template
+    template: nibe-s-series
+    host: 127.0.0.1
+    port: 5020
+    id: 1
+    tempsource: water_mid
+    powercontrol: true
+    roomcontrol: true
+    roomboost: 1
+    dhwcontrol: true
+    dhwboost: large
+loadpoints:
+  - title: NIBE heat pump
+    charger: nibe
+    mode: off
