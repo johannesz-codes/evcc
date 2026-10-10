@@ -245,6 +245,9 @@ func (s *HTTPd) RegisterSiteHandlers(site site.API) {
 		api := api.PathPrefix(fmt.Sprintf("/loadpoints/%d", id+1)).Subrouter()
 
 		routes := map[string]route{
+			"thermal":                   {"GET", "/thermal", getHandler(lp.GetThermalFunctions)},
+			"thermalBoost":              {"POST", "/thermal/{kind:[a-zA-Z]+}/boost/{value:true|false}", thermalBoostHandler(lp)},
+			"thermalConfig":             {"POST", "/thermal/{kind:[a-zA-Z]+}/config", thermalConfigHandler(lp)},
 			"mode":                      {"POST", "/mode/{value:[a-z]+}", handler(eapi.ChargeModeString, pass(lp.SetMode), lp.GetMode)},
 			"alwaysCharge":              {"POST", "/alwayscharge/{value:[a-z]+}", handler(eapi.AlwaysChargeString, lp.SetAlwaysCharge, lp.GetAlwaysCharge)},
 			"limitsoc":                  {"POST", "/limitsoc/{value:[0-9]+}", intHandler(pass(lp.SetLimitSoc), lp.GetLimitSoc)},

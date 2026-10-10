@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/evcc-io/evcc/api"
+	"github.com/evcc-io/evcc/core/thermal"
 )
 
 //go:generate go tool mockgen -package loadpoint -destination mock.go -mock_names API=MockAPI github.com/evcc-io/evcc/core/loadpoint API
@@ -25,6 +26,12 @@ func SurplusFlexible(lp API) bool {
 
 // API is the external loadpoint API
 type API interface {
+	// GetThermalFunctions returns unmetered comfort functions of the physical charger.
+	GetThermalFunctions() []thermal.State
+	// SetThermalBoost requests or removes a function's temporary comfort preload.
+	SetThermalBoost(string, bool) error
+	// SetThermalBoostConfig changes a function's boost parameters while idle.
+	SetThermalBoostConfig(string, api.ThermalBoost) error
 	//
 	// status
 	//

@@ -21,7 +21,8 @@ const (
 	LimitEnergy       = "limitEnergy"      // limit energy
 	Soc               = "soc"
 	Thresholds        = "thresholds"
-	UI                = "ui" // display-only ui settings (json)
+	UI                = "ui"      // display-only ui settings (json)
+	Thermal           = "thermal" // unmetered comfort functions
 	EnableThreshold   = "enableThreshold"
 	DisableThreshold  = "disableThreshold"
 	EnableDelay       = "enableDelay"

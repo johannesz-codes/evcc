@@ -305,6 +305,95 @@ paths:
       responses:
         "200":
           $ref: "#/components/responses/NumberResult"
+  /loadpoints/{id}/thermal:
+    get:
+      operationId: getLoadpointThermalFunctions
+      summary: Get thermal comfort functions
+      description: Independent, unmetered comfort functions sharing one physical loadpoint.
+      tags: [loadpoints]
+      parameters:
+        - $ref: "#/components/parameters/id"
+      responses:
+        "200":
+          description: Comfort function states
+          content:
+            application/json:
+              schema:
+                type: array
+                nullable: true
+                items:
+                  $ref: "./openapi.state.yaml#/components/schemas/ThermalFunction"
+  /loadpoints/{id}/thermal/{kind}/boost/{enabled}:
+    post:
+      operationId: setLoadpointThermalBoost
+      summary: Set temporary comfort boost
+      description: Adds or removes comfort preload. Removes only an owned target, preserving later external changes. Normal space heating remains active.
+      tags: [loadpoints]
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [spaceHeating, domesticHotWater]
+        - name: enabled
+          in: path
+          required: true
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Updated comfort function states
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "./openapi.state.yaml#/components/schemas/ThermalFunction"
+        "400":
+          description: Function unavailable, device error, or invalid request
+  /loadpoints/{id}/thermal/{kind}/config:
+    post:
+      operationId: setLoadpointThermalBoostConfig
+      summary: Set idle comfort boost parameters
+      description: Changes boost parameters after the previous boost and restoration have finished.
+      tags: [loadpoints]
+      parameters:
+        - $ref: "#/components/parameters/id"
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [spaceHeating, domesticHotWater]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                delta:
+                  type: number
+                  minimum: 0.1
+                  maximum: 5
+                  description: Positive room comfort preload in K
+                mode:
+                  type: string
+                  description: Supported hot water boost mode
+      responses:
+        "200":
+          description: Updated comfort function states
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "./openapi.state.yaml#/components/schemas/ThermalFunction"
+        "400":
+          description: Invalid parameters, active boost, or pending restoration
   /loadpoints/{id}/alwayscharge/{alwaysCharge}:
     post:
       operationId: setLoadpointAlwaysCharge

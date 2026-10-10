@@ -14,6 +14,7 @@ import (
 	time "time"
 
 	api "github.com/evcc-io/evcc/api"
+	thermal "github.com/evcc-io/evcc/core/thermal"
 	gomock "go.uber.org/mock/gomock"
 )
 
@@ -713,6 +714,20 @@ func (mr *MockAPIMockRecorder) GetStatus() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStatus", reflect.TypeOf((*MockAPI)(nil).GetStatus))
 }
 
+// GetThermalFunctions mocks base method.
+func (m *MockAPI) GetThermalFunctions() []thermal.State {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetThermalFunctions")
+	ret0, _ := ret[0].([]thermal.State)
+	return ret0
+}
+
+// GetThermalFunctions indicates an expected call of GetThermalFunctions.
+func (mr *MockAPIMockRecorder) GetThermalFunctions() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetThermalFunctions", reflect.TypeOf((*MockAPI)(nil).GetThermalFunctions))
+}
+
 // GetThresholds mocks base method.
 func (m *MockAPI) GetThresholds() ThresholdsConfig {
 	m.ctrl.T.Helper()
@@ -1159,6 +1174,34 @@ func (m *MockAPI) SetSolarShare(share float64) {
 func (mr *MockAPIMockRecorder) SetSolarShare(share any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSolarShare", reflect.TypeOf((*MockAPI)(nil).SetSolarShare), share)
+}
+
+// SetThermalBoost mocks base method.
+func (m *MockAPI) SetThermalBoost(arg0 string, arg1 bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetThermalBoost", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetThermalBoost indicates an expected call of SetThermalBoost.
+func (mr *MockAPIMockRecorder) SetThermalBoost(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThermalBoost", reflect.TypeOf((*MockAPI)(nil).SetThermalBoost), arg0, arg1)
+}
+
+// SetThermalBoostConfig mocks base method.
+func (m *MockAPI) SetThermalBoostConfig(arg0 string, arg1 api.ThermalBoost) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetThermalBoostConfig", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetThermalBoostConfig indicates an expected call of SetThermalBoostConfig.
+func (mr *MockAPIMockRecorder) SetThermalBoostConfig(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThermalBoostConfig", reflect.TypeOf((*MockAPI)(nil).SetThermalBoostConfig), arg0, arg1)
 }
 
 // SetThresholds mocks base method.

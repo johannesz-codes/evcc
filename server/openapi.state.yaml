@@ -762,6 +762,11 @@ components:
       description: A charging location with a charger, an optional dedicated meter and an optional vehicle.
       type: object
       properties:
+        thermal:
+          description: Independent comfort functions. Power and energy belong to this loadpoint only.
+          type: array
+          items:
+            $ref: "#/components/schemas/ThermalFunction"
         name:
           description: Unique loadpoint identifier used in API routes and configuration.
           type: string
@@ -1815,6 +1820,54 @@ components:
         - avgPrice
         - chargedKWh
         - solarPercentage
+    ThermalFunction:
+      description: Unmetered comfort function sharing its parent loadpoint's physical plant.
+      type: object
+      properties:
+        kind:
+          type: string
+          enum:
+            - spaceHeating
+            - domesticHotWater
+        boost:
+          type: object
+          properties:
+            delta:
+              type: number
+            mode:
+              type: string
+        requested:
+          type: boolean
+        active:
+          type: boolean
+        available:
+          type: boolean
+        ownershipLost:
+          type: boolean
+        pendingRestore:
+          type: boolean
+        target:
+          type: number
+        mode:
+          type: string
+        modes:
+          type: array
+          items:
+            type: string
+        boostModes:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+      required:
+        - kind
+        - boost
+        - requested
+        - active
+        - available
+        - ownershipLost
+        - pendingRestore
     TimeseriesEntry:
       description: A forecast value at a point in time as [ts, val] array. ts is unix seconds, val is power in W.
       type: array

@@ -559,6 +559,22 @@ export interface LoadpointUi {
   maxTemp: number;
 }
 
+/** Unmetered comfort function sharing its parent loadpoint's physical plant. */
+export interface ThermalFunction {
+  kind: "spaceHeating" | "domesticHotWater";
+  boost: { delta?: number; mode?: string };
+  requested: boolean;
+  active: boolean;
+  available: boolean;
+  ownershipLost: boolean;
+  pendingRestore: boolean;
+  target?: number;
+  mode?: string;
+  modes?: string[];
+  boostModes?: string[];
+  error?: string;
+}
+
 /** Type of the smart charging limit. */
 export enum SMART_COST_TYPE {
   CO2 = "co2",
@@ -579,6 +595,8 @@ export enum TIME_FORMAT {
 
 /** A charging location with a charger, an optional dedicated meter and an optional vehicle. */
 export interface Loadpoint {
+  /** Independent comfort functions. Power and energy belong to this loadpoint only. */
+  thermal?: ThermalFunction[];
   /** Unique loadpoint identifier used in API routes and configuration. */
   name: string;
   /** Always charge state. Smart mode charges continuously at least at minimum power. */
