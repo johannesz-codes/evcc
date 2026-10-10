@@ -569,6 +569,7 @@ export interface ThermalFunction {
   ownershipLost: boolean;
   pendingRestore: boolean;
   target?: number;
+  temperature?: number;
   normalTarget?: number;
   boostTarget?: number;
   range?: { min: number; max: number; step: number };

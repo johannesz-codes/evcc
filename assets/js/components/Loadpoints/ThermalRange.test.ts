@@ -4,7 +4,7 @@ import ThermalRange from "./ThermalRange.vue";
 
 const render = () =>
   mount(ThermalRange, {
-    props: { id: "room", normalTarget: 21, boostTarget: 22, min: 5, max: 30, step: 0.1 },
+    props: { id: "room", normalTarget: 21, boostTarget: 22, min: 15, max: 30, step: 0.1 },
     global: { mocks: { $t: (key: string) => key } },
   });
 
@@ -14,9 +14,9 @@ describe("thermal range", () => {
     const inputs = wrapper.findAll<HTMLInputElement>("[type=range]");
     await inputs[0]!.setValue(30);
     expect(wrapper.emitted("change")![0]).toEqual([{ normal: 21.9, boost: 22 }]);
-    await inputs[1]!.setValue(5);
+    await inputs[1]!.setValue(15);
     expect(wrapper.emitted("change")![1]).toEqual([{ normal: 21.9, boost: 22 }]);
-    await inputs[0]!.setValue(5);
+    await inputs[0]!.setValue(15);
     expect(wrapper.emitted("change")![2]).toEqual([{ normal: 17, boost: 22 }]);
   });
 
@@ -40,5 +40,13 @@ describe("thermal range", () => {
     await wrapper.setProps({ normalTarget: 30, boostTarget: 31 });
     await wrapper.findAll<HTMLInputElement>("[type=range]")[0]!.setValue(29);
     expect(wrapper.emitted("change")![0]).toEqual([{ normal: 29, boost: 30 }]);
+  });
+  test("an external target outside the UI range is never written on mount", async () => {
+    const wrapper = render();
+    await wrapper.setProps({ normalTarget: 12, boostTarget: 13 });
+    expect(wrapper.text()).toContain("12.0°C");
+    expect(wrapper.emitted("change")).toBeUndefined();
+    await wrapper.findAll<HTMLInputElement>("[type=range]")[1]!.setValue(17);
+    expect(wrapper.emitted("change")![0]).toEqual([{ normal: 15, boost: 17 }]);
   });
 });

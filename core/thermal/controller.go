@@ -29,6 +29,7 @@ type State struct {
 	OwnershipLost       bool              `json:"ownershipLost"`
 	PendingRestore      bool              `json:"pendingRestore"`
 	Target              *float64          `json:"target,omitempty"`
+	Temperature         *float64          `json:"temperature,omitempty"`
 	Mode                string            `json:"mode,omitempty"`
 	Modes               []string          `json:"modes,omitempty"`
 	BoostModes          []string          `json:"boostModes,omitempty"`
@@ -345,6 +346,11 @@ func (c *Controller) saveOwnership(f *function, owned *ownership) error {
 
 func (c *Controller) update(f *function) (State, error) {
 	s := State{Kind: f.spec.Kind, Boost: f.saved.Boost, Requested: f.requested, OwnershipLost: f.lost, PendingRestore: !f.requested && f.saved.Ownership != nil, BoostModes: f.spec.BoostModes, PendingTargetUpdate: f.saved.PendingTargets != nil}
+	if sensor, ok := f.device.(api.ThermalTemperature); ok {
+		if temperature, err := sensor.Temperature(); err == nil && finite(temperature) && temperature > -273.15 && temperature < 1000 {
+			s.Temperature = &temperature
+		}
+	}
 	if len(f.spec.Modes) == 0 {
 		s.Range = &api.ThermalRange{Min: f.spec.Min, Max: f.spec.Max, Step: f.spec.Step}
 	}

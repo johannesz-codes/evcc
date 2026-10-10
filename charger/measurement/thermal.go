@@ -19,6 +19,7 @@ type Thermal struct {
 // ThermalConfig uses the existing plugin transport for an unmetered function.
 type ThermalConfig struct {
 	Get, Set       plugin.Config
+	Temperature    *plugin.Config
 	Min, Max, Step float64
 	Modes          map[string]float64
 	BoostModes     []string
@@ -38,6 +39,15 @@ type thermalFunction struct {
 }
 
 var _ api.ThermalFunction = (*thermalFunction)(nil)
+
+type thermalTemperature struct {
+	*thermalFunction
+	getTemperature func() (float64, error)
+}
+
+var _ api.ThermalTemperature = (*thermalTemperature)(nil)
+
+func (f *thermalTemperature) Temperature() (float64, error) { return f.getTemperature() }
 
 func (f *thermalFunction) ThermalSpec() api.ThermalSpec { return f.spec }
 func (f *thermalFunction) Target() (float64, error)     { return f.get() }
@@ -93,10 +103,19 @@ func (cc *Thermal) Configure(ctx context.Context) (api.ThermalDevice, error) {
 		if err != nil {
 			return nil, err
 		}
-		res = append(res, &thermalFunction{
+		temperature, err := c.Temperature.FloatGetter(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("thermal %s temperature: %w", kind, err)
+		}
+		base := &thermalFunction{
 			spec: api.ThermalSpec{Kind: kind, Identity: fmt.Sprintf("%x", sha256.Sum256(identity)), Min: c.Min, Max: c.Max, Step: c.Step, Modes: c.Modes, BoostModes: c.BoostModes, Boost: c.Boost},
 			get:  get, set: set,
-		})
+		}
+		var function api.ThermalFunction = base
+		if temperature != nil {
+			function = &thermalTemperature{thermalFunction: base, getTemperature: temperature}
+		}
+		res = append(res, function)
 	}
 	return res, nil
 }

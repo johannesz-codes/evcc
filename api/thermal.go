@@ -39,6 +39,11 @@ type ThermalFunction interface {
 	SetTarget(float64) error
 }
 
+// ThermalTemperature optionally measures a function's current temperature.
+type ThermalTemperature interface {
+	Temperature() (float64, error)
+}
+
 // ThermalDevice exposes logical functions sharing its existing electrical meter.
 type ThermalDevice interface {
 	ThermalFunctions() []ThermalFunction

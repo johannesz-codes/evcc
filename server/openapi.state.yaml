@@ -1850,6 +1850,8 @@ components:
           type: boolean
         target:
           type: number
+        temperature:
+          type: number
         normalTarget:
           type: number
         boostTarget:

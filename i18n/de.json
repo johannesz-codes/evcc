@@ -1787,6 +1787,7 @@
     "vehicles": "Parkplatz",
     "welcome": "Herzlich willkommen!",
     "thermal": {
+      "roomTemperature": "Raumtemperatur",
       "normalTarget": "Normaler Sollwert",
       "boostTarget": "Boost-Sollwert",
       "temperatures": "Temperaturen",

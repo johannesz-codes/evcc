@@ -67,6 +67,16 @@ test.describe("NIBE comfort functions", () => {
     await expect(summary).toContainText("21.0°C");
     await expect(summary).toContainText("Medium");
     await expect(lp.getByRole("switch")).toHaveCount(0);
+    const roomSlider = lp.getByRole("region", { name: "Space heating", exact: true });
+    await expect(roomSlider).toContainText("Room temperature");
+    await expect(roomSlider).toContainText("20.0°C");
+    await expect(roomSlider.getByRole("slider")).toHaveCount(2);
+    for (const slider of await roomSlider.getByRole("slider").all()) {
+      await expect(slider).toHaveAttribute("min", "15");
+      await expect(slider).toHaveAttribute("max", "30");
+    }
+    await expect(lp.getByTestId("current-soc")).toContainText("45.0°C");
+    await expect(lp.getByTestId("limit-soc")).toContainText("100.0°C");
     await expect(lp.getByLabel("Boost delta")).toHaveCount(0);
     await expect(lp.getByLabel("Boost mode")).toHaveCount(0);
     const screenshots = process.env["NIBE_SCREENSHOTS"];
@@ -75,14 +85,17 @@ test.describe("NIBE comfort functions", () => {
       await lp.screenshot({ path: `${screenshots}/nibe-normal.png`, animations: "disabled" });
     }
     await openSettings();
+    const mainRoom = lp.getByRole("region", { name: "Space heating", exact: true });
     const room = modal.getByRole("region", { name: "Space heating", exact: true });
     const water = modal.getByRole("region", { name: "Hot water", exact: true });
     await expect(room).toContainText("21.0°C");
     await expect(water).toContainText("Medium");
-    await expect(room.getByRole("slider", { name: "Normal target", exact: true })).toHaveValue(
+    await expect(mainRoom.getByRole("slider", { name: "Normal target", exact: true })).toHaveValue(
       "21"
     );
-    await expect(room.getByRole("slider", { name: "Boost target", exact: true })).toHaveValue("22");
+    await expect(mainRoom.getByRole("slider", { name: "Boost target", exact: true })).toHaveValue(
+      "22"
+    );
     await expect(water.getByLabel("Boost mode")).toHaveValue("large");
 
     if (screenshots) {
@@ -91,18 +104,14 @@ test.describe("NIBE comfort functions", () => {
         .getByRole("heading", { name: "Comfort", exact: true })
         .boundingBox();
       const lastFunction = await water.boundingBox();
-      const temperatures = await room
-        .getByRole("group", { name: "Temperatures", exact: true })
-        .boundingBox();
-      if (!heading || !lastFunction || !temperatures)
-        throw new Error("Comfort controls unavailable for screenshot");
+      if (!heading || !lastFunction) throw new Error("Comfort controls unavailable for screenshot");
       await page.screenshot({
         path: `${screenshots}/nibe-controls.png`,
         animations: "disabled",
         clip: {
           x: heading.x - 4,
           y: heading.y - 4,
-          width: Math.max(heading.width, temperatures.x + temperatures.width - heading.x) + 16,
+          width: heading.width + 16,
           height: lastFunction.y + lastFunction.height - heading.y + 8,
         },
       });
@@ -147,7 +156,8 @@ test.describe("NIBE comfort functions", () => {
     await water.getByRole("switch", { name: "Comfort boost" }).uncheck();
     await expect(water).toContainText("Medium");
 
-    const boostedTarget = room.getByRole("slider", { name: "Boost target", exact: true });
+    await closeSettings();
+    const boostedTarget = mainRoom.getByRole("slider", { name: "Boost target", exact: true });
     for (const target of ["22.1", "22.2", "22.3", "22.4", "22.5"]) {
       await expect(boostedTarget).toBeEnabled();
       await boostedTarget.press("ArrowRight");
@@ -155,8 +165,9 @@ test.describe("NIBE comfort functions", () => {
       await expect.poll(async () => (await functions())[0]?.boostTarget).toBe(Number(target));
     }
     await boost("spaceHeating", true);
-    await expect(room).toContainText("22.5°C");
+    await expect(summary).toContainText("22.5°C");
     write(206, 200);
+    await openSettings();
     await expect(room).toContainText("Target changed externally");
     await closeSettings();
     await expect(summary).toContainText("Target changed");
@@ -192,7 +203,7 @@ test.describe("NIBE comfort functions", () => {
     await openSettings();
     await expect(room).toContainText("21.0°C");
     await expect(water).toContainText("Medium");
-    await expect(room.getByRole("slider", { name: "Normal target", exact: true })).toHaveValue(
+    await expect(mainRoom.getByRole("slider", { name: "Normal target", exact: true })).toHaveValue(
       "21"
     );
     await expect(boostedTarget).toHaveValue("22.5");
@@ -282,11 +293,25 @@ test.describe("NIBE comfort functions", () => {
       (await (await request.get(`${simulator}/state`)).json()).effective.room.normal_setpoint_c;
     const targets = async (): Promise<ThermalFunction> =>
       (await (await request.get("/api/loadpoints/1/thermal")).json())[0];
-    await open();
     const room = modal.getByRole("region", { name: "Space heating", exact: true });
-    const normal = room.getByRole("slider", { name: "Normal target", exact: true });
-    const boosted = room.getByRole("slider", { name: "Boost target", exact: true });
+    const mainRoom = lp.getByRole("region", { name: "Space heating", exact: true });
+    const normal = mainRoom.getByRole("slider", { name: "Normal target", exact: true });
+    const boosted = mainRoom.getByRole("slider", { name: "Boost target", exact: true });
     const toggle = room.getByRole("switch", { name: "Comfort boost" });
+    const setBoost = async (enabled: boolean) => {
+      await open();
+      await toggle.setChecked(enabled);
+      await Promise.all([
+        modal.evaluate(
+          (element) =>
+            new Promise<void>((resolve) =>
+              element.addEventListener("hidden.bs.modal", () => resolve(), { once: true })
+            )
+        ),
+        modal.getByRole("button", { name: "Close" }).click(),
+      ]);
+      await expectModalHidden(modal);
+    };
     await normal.press("ArrowLeft");
     await expect(normal).toHaveValue("20.9");
     await expect.poll(current).toBe(20.9);
@@ -294,9 +319,8 @@ test.describe("NIBE comfort functions", () => {
     await boosted.press("ArrowRight");
     await expect(boosted).toHaveValue("22.1");
     await expect.poll(async () => (await targets()).boostTarget).toBe(22.1);
-    await expect(toggle).toBeEnabled();
     expect(await current()).toBe(20.9);
-    await toggle.check();
+    await setBoost(true);
     await expect.poll(current).toBe(22.1);
     await expect(normal).toBeEnabled();
     await expect(boosted).toBeEnabled();
@@ -308,36 +332,34 @@ test.describe("NIBE comfort functions", () => {
     await boosted.press("ArrowRight");
     await expect(boosted).toHaveValue("22.2");
     await expect.poll(current).toBe(22.2);
-    await expect(toggle).toBeEnabled();
-    await toggle.uncheck();
+    await setBoost(false);
     await expect.poll(current).toBe(20.8);
     await restart(CONFIG);
     await page.reload();
-    await open();
     await expect(normal).toHaveValue("20.8");
     await expect(boosted).toHaveValue("22.2");
 
     const bounds = await boosted.boundingBox();
     if (!bounds) throw new Error("Boost handle unavailable");
-    const position = (value: number) => bounds.x + 10 + ((value - 5) / 25) * (bounds.width - 20);
+    const position = (value: number) => bounds.x + ((value - 15) / 15) * bounds.width;
     await page.mouse.move(position(22.2), bounds.y + bounds.height / 2);
     await page.mouse.down();
     await page.mouse.move(position(23), bounds.y + bounds.height / 2, { steps: 8 });
     await page.mouse.up();
     await expect(boosted).toHaveValue("23");
     expect(await current()).toBe(20.8);
-    await toggle.check();
+    await setBoost(true);
     await expect.poll(current).toBe(23);
     write(206, 205);
     const response = await request.post("/api/loadpoints/1/thermal/spaceHeating/targets", {
       data: { normal: 21, boost: 23 },
     });
     expect(response.status()).toBe(400);
-    await expect(room).toContainText("Target changed externally");
+    await expect(summary).toContainText("Target changed");
     expect(await current()).toBe(20.5);
     await expect(normal).toBeDisabled();
     await expect(boosted).toBeDisabled();
-    await toggle.uncheck();
+    await setBoost(false);
     await expect(normal).toHaveValue("20.5");
     await expect(boosted).toHaveValue("23");
     expect(await current()).toBe(20.5);
@@ -359,8 +381,7 @@ test.describe("NIBE comfort functions", () => {
     await normal.scrollIntoViewIfNeeded();
     const mobileBounds = await normal.boundingBox();
     if (!mobileBounds) throw new Error("Normal handle unavailable on mobile");
-    const touchX = (value: number) =>
-      mobileBounds.x + 10 + ((value - 5) / 25) * (mobileBounds.width - 20);
+    const touchX = (value: number) => mobileBounds.x + ((value - 15) / 15) * mobileBounds.width;
     const touch = await page.context().newCDPSession(page);
     await touch.send("Input.dispatchTouchEvent", {
       type: "touchStart",

@@ -98,6 +98,7 @@
 			:functions="thermal"
 			@open-settings="openSettingsModal"
 		/>
+		<ThermalTargets v-if="spaceHeating" :id="id" :fn="spaceHeating" />
 		<Vehicle
 			class="flex-grow-1 d-flex flex-column justify-content-end"
 			v-bind="vehicleProps"
@@ -128,6 +129,7 @@ import SettingsModal from "./SettingsModal.vue";
 import VehicleIcon from "../VehicleIcon";
 import SessionInfo from "./SessionInfo.vue";
 import ThermalSummary from "./ThermalSummary.vue";
+import ThermalTargets from "./ThermalTargets.vue";
 import { defineComponent, type PropType } from "vue";
 import type {
 	CHARGE_MODE,
@@ -157,6 +159,7 @@ export default defineComponent({
 		LoadpointSessionInfo: SessionInfo,
 		VehicleIcon,
 		ThermalSummary,
+		ThermalTargets,
 	},
 	mixins: [formatter, collector],
 	props: {
@@ -292,6 +295,9 @@ export default defineComponent({
 		};
 	},
 	computed: {
+		spaceHeating() {
+			return this.thermal?.find((fn) => fn.kind === "spaceHeating");
+		},
 		expandLoadpointHeader() {
 			return this.multipleLoadpoints && !this.fullWidth;
 		},

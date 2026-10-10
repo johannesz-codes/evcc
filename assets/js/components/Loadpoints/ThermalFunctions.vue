@@ -37,32 +37,7 @@
 					</div>
 				</div>
 			</div>
-			<div
-				v-if="
-					fn.kind === 'spaceHeating' &&
-					fn.range &&
-					fn.normalTarget !== undefined &&
-					fn.boostTarget !== undefined
-				"
-				class="row"
-			>
-				<div class="col-sm-4 col-form-label pt-0 pt-sm-2">
-					{{ $t("main.thermal.temperatures") }}
-				</div>
-				<div class="col-sm-8 pe-0">
-					<ThermalRange
-						:ref="controlId(fn, 'targets')"
-						:id="controlId(fn, 'targets')"
-						:normal-target="fn.normalTarget"
-						:boost-target="fn.boostTarget"
-						v-bind="fn.range"
-						:disabled="targetsDisabled(fn)"
-						:loading="isBusy(fn)"
-						@change="setTargets(fn, $event)"
-					/>
-				</div>
-			</div>
-			<div v-else-if="fn.kind === 'domesticHotWater'" class="row">
+			<div v-if="fn.kind === 'domesticHotWater'" class="row">
 				<label :for="controlId(fn, 'mode')" class="col-sm-4 col-form-label pt-0 pt-sm-2">{{
 					$t("main.thermal.boostMode")
 				}}</label>
@@ -104,12 +79,10 @@ import { defineComponent, type PropType } from "vue";
 import api from "@/api";
 import type { ThermalFunction } from "@/types/evcc";
 import formatter from "@/mixins/formatter";
-import ThermalRange from "./ThermalRange.vue";
 
 export default defineComponent({
 	name: "ThermalFunctions",
 	mixins: [formatter],
-	components: { ThermalRange },
 	props: {
 		id: { type: String, required: true },
 		functions: { type: Array as PropType<ThermalFunction[]>, required: true },
@@ -146,28 +119,6 @@ export default defineComponent({
 		},
 		configDisabled(fn: ThermalFunction) {
 			return this.isBusy(fn) || fn.requested || fn.pendingRestore;
-		},
-		targetsDisabled(fn: ThermalFunction) {
-			return (
-				this.isBusy(fn) ||
-				!fn.available ||
-				fn.ownershipLost ||
-				fn.pendingRestore ||
-				fn.pendingTargetUpdate
-			);
-		},
-		async setTargets(fn: ThermalFunction, targets: { normal: number; boost: number }) {
-			this.busy.push(fn.kind);
-			try {
-				await api.post(`loadpoints/${this.id}/thermal/${fn.kind}/targets`, targets);
-			} catch {
-				const controls = this.$refs[this.controlId(fn, "targets")] as
-					| InstanceType<typeof ThermalRange>[]
-					| undefined;
-				controls?.forEach((control) => control.reset());
-			} finally {
-				this.busy = this.busy.filter((kind) => kind !== fn.kind);
-			}
 		},
 		boostModes(fn: ThermalFunction) {
 			return fn.boostModes ?? [];

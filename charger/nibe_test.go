@@ -35,5 +35,10 @@ func TestNibeThermalOptIn(t *testing.T) {
 		assert.Contains(t, string(rendered), "address: 6007")
 		assert.Contains(t, string(rendered), "address: 2741")
 		assert.NotContains(t, string(rendered), "address: 2740")
+		if tc.room {
+			assert.Contains(t, string(rendered), "address: 26")
+		} else {
+			assert.NotContains(t, string(rendered), "address: 26\n")
+		}
 	}
 }

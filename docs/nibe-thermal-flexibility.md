@@ -2,7 +2,7 @@
 
 One SMO S40 / F2120 remains one charger, one heating loadpoint, and one physical
 power/energy meter. Its space-heating and domestic-hot-water functions are optional
-comfort controls in the existing heating loadpoint's settings. They do not create
+comfort controls in the existing heating loadpoint. They do not create
 loadpoints, meters, sessions, electrical capacities, or optimizer battery entries.
 
 ## Architecture and control
@@ -23,8 +23,9 @@ NIBE-specific mappings stay in the template:
 Normal DHW modes small, medium, large, not in use, and smart control are displayed
 by name. The last two cannot be selected as boost modes. Room targets must remain
 between 5 and 30 °C. The boost target is above normal by 0.1 through 5 K, in 0.1 K
-increments. Targets outside the supported range fail without a write. No
-room-temperature feedback controller,
+increments. The main-card space-heating slider shows a fixed 15 to 30 °C scale.
+The device/API range remains 5 to 30 °C. Targets outside the supported device
+range fail without a write. No room-temperature feedback controller,
 supply-temperature override, or compressor-frequency control is introduced.
 
 Direct requests never call charger `Enable`, `Dimm`, or `MaxCurrent`. SG Ready
@@ -70,20 +71,33 @@ must already be configured on the NIBE. This PoC does not configure SRC or verif
 the real device's model/firmware register export.
 
 The physical heating loadpoint's Normal/Smart/Boost controls retain their existing
-SG Ready meaning. A compact summary below the shared power/energy display shows
-the room target, hot-water mode, and active or recovery status. Click the summary
-or the existing settings button to open the loadpoint settings dialog. Its Comfort
-section contains independent Space heating and Hot water switches, boost
-parameters, and detailed recovery messages. It uses the established form layout.
-A single space-heating slider has two editable, keyboard-accessible handles:
-Normal target and Boost target. Dragging commits on release. The handles cannot
-cross or exceed the 5 K gap. Hot-water boost mode remains editable while idle.
+SG Ready meaning. The card has a separate space-heating slider above the existing
+water-temperature slider. Its two editable, keyboard-accessible handles select
+Normal target and Boost target on a 15 to 30 °C scale. It uses the same wide
+thermometer bar, temperature colors, and tall handles as the water control. The
+existing water slider, temperature reading, and limit selector are unchanged.
+Dragging commits on release; handles cannot cross or exceed the 5 K gap.
+
+The room bar shows the measured BT50 temperature from input 26, signed int16,
+scaled by 0.1 °C. The filled portion and Room temperature readout use this sensor
+value, independently of the setpoint and boost handles. A missing, failed, or
+invalid reading is omitted rather than replaced with a target. Sensor failure
+does not block otherwise available target control. This is a display, not a new
+room-temperature feedback loop.
 
 With boost off, moving the normal handle writes the NIBE room setpoint; moving the
 upper handle only stores the boost temperature. During an owned boost, the upper
 handle changes its active target and the normal handle changes the value restored
 afterwards. Both remain editable. Unavailable devices, external overrides, and
-pending recovery disable edits. The compact parent card remains unchanged.
+pending recovery disable edits. An external normal target outside the UI scale is still
+shown accurately in the labels; opening the card never writes it. Editing the
+slider explicitly selects a pair within the displayed scale.
+
+A compact summary below the shared power/energy display shows room and hot-water
+targets and active or recovery status. Click it or the existing settings button to
+open the loadpoint settings dialog. Its Comfort section retains the independent
+Space heating and Hot water boost switches, the idle hot-water boost-mode selector,
+and detailed recovery messages. Temperature handles live on the main card.
 
 The template's `roomboost` supplies the initial relative delta. The first slider
 edit selects a fixed upper temperature, saved across restarts. An external normal
@@ -92,7 +106,7 @@ If normal is already at or above the upper target, a boost never lowers it or
 acquires ownership. The normal target is read from NIBE or the owned restoration
 record; it is not continually enforced over other controllers.
 
-Compact card with normal comfort targets:
+Heating card with separate room and water sliders:
 
 ![Normal room and hot-water targets](images/nibe-normal.png)
 
@@ -100,7 +114,7 @@ Both independent requests active, with one shared power reading:
 
 ![Room and hot-water boosts active](images/nibe-both-boosts.png)
 
-Comfort controls in the existing settings dialog:
+Boost switches and recovery details in the existing settings dialog:
 
 ![Comfort controls](images/nibe-controls.png)
 
@@ -108,7 +122,8 @@ Comfort controls in the existing settings dialog:
 [mobile card](images/nibe-mobile.png),
 [German mobile card](images/nibe-mobile-de.png),
 and [German mobile settings](images/nibe-settings-mobile-de.png) show the responsive
-layout. Parameters and switches stay in the dialog on small screens as well.
+layout. Both temperature handles stay on the card on small screens; boost switches
+and hot-water mode selection remain in settings.
 
 ## Examples and optimizer boundary
 
@@ -122,7 +137,9 @@ Alternatively, set the slider to normal 20.9 °C and boost 22.1 °C. The idle de
 uses 20.9 °C. Enabling boost writes 22.1 °C. While it is active, select normal
 20.8 °C and boost 22.2 °C: the device uses 22.2 °C, then restores 20.8 °C when the
 request is removed. Selecting a higher normal temperature intentionally changes
-normal comfort, independently of requesting preload.
+normal comfort, independently of requesting preload. The measured room value may
+still be 20 °C while either target is selected; the bar shows that measurement
+separately rather than claiming the room has already reached the target.
 
 Independently, request a hot-water boost from medium to large, then remove it to
 restore medium. Room and DHW requests may both be active. A caller can request just
@@ -149,8 +166,10 @@ when DHW was already in the requested mode. `available`, `ownershipLost`, and
 fails, avoiding a stale value being shown as current.
 
 Numeric functions also expose `normalTarget`, `boostTarget`, and a `range` with
-`min`, `max`, and `step`. `target` remains the current physical setpoint, so it is
-the boost temperature while active. `pendingTargetUpdate` reports an interrupted
+`min`, `max`, and `step`. The optional `temperature` field is a measured sensor
+value supplied through `api.ThermalTemperature`; it is absent when unavailable.
+`target` remains the current physical setpoint, so it is the boost temperature
+while active. `pendingTargetUpdate` reports an interrupted
 normal-setpoint edit awaiting reconciliation. The existing `/config` API still
 accepts idle relative deltas and also accepts `{"target":22.1}` for a fixed boost
 temperature. A fixed target and a delta are mutually exclusive.

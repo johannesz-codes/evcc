@@ -85,6 +85,14 @@ render: |
       step: 0.1
       boost:
         delta: {{ .roomboost }}
+      temperature:
+        source: modbus
+        {{- include "modbus" . | indent 6 }}
+        register:
+          address: 26
+          type: input
+          encoding: int16
+        scale: 0.1
       get:
         source: modbus
         {{- include "modbus" . | indent 6 }}

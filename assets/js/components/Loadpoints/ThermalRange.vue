@@ -16,11 +16,13 @@
 			role="group"
 			:aria-label="$t('main.thermal.temperatures')"
 		>
-			<div class="range-track"></div>
-			<div class="range-selection"></div>
+			<div class="progress range-track">
+				<div class="range-fill range-boost"></div>
+				<div v-if="temperature !== undefined" class="range-fill range-current"></div>
+			</div>
 			<input
 				:id="`${id}-normal`"
-				class="form-range normal-range"
+				class="slider normal-range"
 				type="range"
 				:min="min"
 				:max="max"
@@ -36,7 +38,7 @@
 			/>
 			<input
 				:id="`${id}-boost`"
-				class="form-range boost-range"
+				class="slider boost-range"
 				type="range"
 				:min="min"
 				:max="max"
@@ -51,9 +53,13 @@
 				@change="commit"
 			/>
 		</div>
-		<div class="d-flex justify-content-between small text-muted" aria-hidden="true">
-			<span>{{ fmtTemperature(min) }}</span>
-			<span>{{ fmtTemperature(max) }}</span>
+		<div class="d-flex justify-content-between gap-2 small text-muted">
+			<span aria-hidden="true">{{ fmtTemperature(min) }}</span>
+			<span v-if="temperature !== undefined">
+				{{ $t("main.thermal.roomTemperature") }}
+				<strong class="evcc-default-text ms-1">{{ fmtTemperature(temperature) }}</strong>
+			</span>
+			<span aria-hidden="true">{{ fmtTemperature(max) }}</span>
 		</div>
 	</div>
 </template>
@@ -69,6 +75,7 @@ export default defineComponent({
 		id: { type: String, required: true },
 		normalTarget: { type: Number, required: true },
 		boostTarget: { type: Number, required: true },
+		temperature: Number,
 		min: { type: Number, required: true },
 		max: { type: Number, required: true },
 		step: { type: Number, required: true },
@@ -98,8 +105,9 @@ export default defineComponent({
 		},
 		trackStyle() {
 			return {
-				"--normal-position": (this.normal - this.min) / (this.max - this.min),
-				"--boost-position": (this.boost - this.min) / (this.max - this.min),
+				"--normal-position": this.position(this.normal),
+				"--boost-position": this.position(this.boost),
+				"--current-position": this.position(this.temperature ?? this.normal),
 			};
 		},
 	},
@@ -116,6 +124,9 @@ export default defineComponent({
 		},
 	},
 	methods: {
+		position(value: number) {
+			return Math.min(1, Math.max(0, (value - this.min) / (this.max - this.min)));
+		},
 		reset() {
 			this.normal = this.normalTarget;
 			this.boost = Math.min(this.max, this.boostTarget);
@@ -124,6 +135,9 @@ export default defineComponent({
 		preview(handle: "normal" | "boost", event: Event) {
 			if (this.disabled) return;
 			const input = event.target as HTMLInputElement;
+			if (handle === "normal")
+				this.boost = Math.min(this.max, Math.max(this.min + this.step, this.boost));
+			else this.normal = Math.min(this.max - this.step, Math.max(this.min, this.normal));
 			const lower = handle === "normal" ? this.normalMin : this.boostMin;
 			const upper = handle === "normal" ? this.normalMax : this.boostMax;
 			const value = Math.min(upper, Math.max(lower, Number(input.value)));
@@ -142,72 +156,114 @@ export default defineComponent({
 
 <style scoped>
 .thermal-range {
+	--height: 32px;
+	--thumb-overlap: 6px;
+	--thumb-width: 12px;
 	position: relative;
-	height: 44px;
-}
-.range-track,
-.range-selection {
-	position: absolute;
-	top: 20px;
-	height: 4px;
-	border-radius: 2px;
+	height: var(--height);
+	margin: 10px 0;
+	container-type: inline-size;
 }
 .range-track {
-	left: 10px;
-	right: 10px;
-	background: var(--bs-secondary-bg);
+	position: absolute;
+	inset: 0;
+	height: 100%;
+	background: var(--evcc-background);
 }
-.range-selection {
-	left: calc(10px + (100% - 20px) * var(--normal-position));
-	width: max(0px, calc((100% - 20px) * (var(--boost-position) - var(--normal-position))));
-	background: var(--evcc-green);
+.range-fill {
+	position: absolute;
+	inset: 0 auto 0 0;
+	background: var(--evcc-heating-gradient);
+	background-size: 500cqw 100%;
+	background-position-x: calc(var(--current-position) * -400cqw);
+	background-repeat: no-repeat;
 }
-.form-range {
-	--thumb-size: 20px;
-	--thumb-ring: 3px;
-	--track-height: 4px;
-	background: none;
+.range-current {
+	width: calc(var(--current-position) * 100%);
+}
+.range-boost {
+	width: calc(var(--boost-position) * 100%);
+	opacity: 0.5;
+}
+.slider {
+	-webkit-appearance: none;
+	appearance: none;
 	position: absolute;
 	left: 0;
-	top: 10px;
-	height: 24px;
+	top: calc(var(--thumb-overlap) * -1);
+	height: calc(100% + 2 * var(--thumb-overlap));
+	width: 100%;
 	margin: 0;
+	background: transparent;
 	pointer-events: none;
 	touch-action: none;
 }
-.form-range::-webkit-slider-runnable-track {
-	background: transparent;
-}
-.form-range::-moz-range-track {
-	background: transparent;
-}
-.form-range::-webkit-slider-thumb {
-	width: 20px;
-	height: 20px;
-	margin-top: -8px;
-	pointer-events: auto;
-}
-.form-range::-moz-range-thumb {
-	width: 20px;
-	height: 20px;
-	pointer-events: auto;
-}
-.normal-range::-webkit-slider-thumb {
-	background: var(--evcc-default-text);
-}
-.normal-range::-moz-range-thumb {
-	background: var(--evcc-default-text);
-}
-.normal-range {
-	z-index: 1;
-}
-.form-range:focus {
+.slider:focus {
+	outline: none;
 	z-index: 2;
 }
-.form-range:disabled::-webkit-slider-thumb {
+.slider::-webkit-slider-runnable-track {
+	background: transparent;
+	border: none;
+	height: 100%;
+	margin: 0 -6px;
+}
+.slider::-moz-range-track {
+	background: transparent;
+	border: none;
+	height: 100%;
+	margin: 0 -6px;
+}
+.slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	height: 100%;
+	width: var(--thumb-width);
+	border: none;
+	border-radius: var(--thumb-overlap);
+	background: var(--evcc-heating-gradient);
+	background-size: 100cqw 100%;
+	background-position-x: calc(var(--handle-position) * 100%);
+	box-shadow: 0 0 6px var(--evcc-background);
+	cursor: grab;
+	pointer-events: auto;
+}
+.slider::-moz-range-thumb {
+	height: 100%;
+	width: var(--thumb-width);
+	border: none;
+	border-radius: var(--thumb-overlap);
+	background: var(--evcc-heating-gradient);
+	background-size: 100cqw 100%;
+	background-position-x: calc(var(--handle-position) * 100%);
+	box-shadow: 0 0 6px var(--evcc-background);
+	cursor: grab;
+	pointer-events: auto;
+}
+.normal-range {
+	--handle-position: var(--normal-position);
+	z-index: 1;
+}
+.boost-range {
+	--handle-position: var(--boost-position);
+}
+.slider:focus-visible::-webkit-slider-thumb {
+	outline: 2px solid var(--evcc-default-text);
+	outline-offset: 2px;
+}
+.slider:focus-visible::-moz-range-thumb {
+	outline: 2px solid var(--evcc-default-text);
+	outline-offset: 2px;
+}
+.slider:active::-webkit-slider-thumb {
+	cursor: grabbing;
+}
+.slider:active::-moz-range-thumb {
+	cursor: grabbing;
+}
+.slider:disabled::-webkit-slider-thumb {
 	pointer-events: none;
 }
-.form-range:disabled::-moz-range-thumb {
+.slider:disabled::-moz-range-thumb {
 	pointer-events: none;
 }
 </style>

@@ -223,6 +223,39 @@ func (f *testFunction) SetTarget(value float64) error {
 
 type testDevice []api.ThermalFunction
 
+type testTemperature struct {
+	*testFunction
+	temperature float64
+	err         error
+}
+
+func (f *testTemperature) Temperature() (float64, error) { return f.temperature, f.err }
+
+func TestMeasuredTemperature(t *testing.T) {
+	_, room, dhw, store := setup(t)
+	sensor := &testTemperature{testFunction: room, temperature: 20}
+	c, err := New(testDevice{sensor, dhw}, store)
+	require.NoError(t, err)
+	state := c.Update()[0]
+	assert.Equal(t, 20., *state.Temperature)
+	assert.Equal(t, 21., *state.Target)
+	require.NoError(t, c.SetBoost("spaceHeating", true))
+	state = c.Update()[0]
+	assert.Equal(t, 20., *state.Temperature)
+	assert.Equal(t, 22., *state.Target)
+	sensor.err = errors.New("sensor unavailable")
+	state = c.Update()[0]
+	assert.Nil(t, state.Temperature)
+	assert.True(t, state.Available)
+	require.NoError(t, c.SetBoost("spaceHeating", false))
+	assert.Equal(t, 21., room.value)
+	sensor.err = nil
+	for _, value := range []float64{math.NaN(), math.Inf(1), math.Inf(-1), 3276.7, -3276.8} {
+		sensor.temperature = value
+		assert.Nil(t, c.Update()[0].Temperature)
+	}
+}
+
 func (d testDevice) ThermalFunctions() []api.ThermalFunction { return d }
 
 func setup(t *testing.T) (*Controller, *testFunction, *testFunction, *testStore) {

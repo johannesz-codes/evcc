@@ -1787,6 +1787,7 @@
     "vehicles": "Parking",
     "welcome": "Hello aboard!",
     "thermal": {
+      "roomTemperature": "Room temperature",
       "normalTarget": "Normal target",
       "boostTarget": "Boost target",
       "temperatures": "Temperatures",
