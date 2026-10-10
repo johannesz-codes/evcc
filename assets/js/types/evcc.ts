@@ -562,13 +562,17 @@ export interface LoadpointUi {
 /** Unmetered comfort function sharing its parent loadpoint's physical plant. */
 export interface ThermalFunction {
   kind: "spaceHeating" | "domesticHotWater";
-  boost: { delta?: number; mode?: string };
+  boost: { delta?: number; mode?: string; target?: number };
   requested: boolean;
   active: boolean;
   available: boolean;
   ownershipLost: boolean;
   pendingRestore: boolean;
   target?: number;
+  normalTarget?: number;
+  boostTarget?: number;
+  range?: { min: number; max: number; step: number };
+  pendingTargetUpdate?: boolean;
   mode?: string;
   modes?: string[];
   boostModes?: string[];

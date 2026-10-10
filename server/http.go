@@ -248,6 +248,7 @@ func (s *HTTPd) RegisterSiteHandlers(site site.API) {
 			"thermal":                   {"GET", "/thermal", getHandler(lp.GetThermalFunctions)},
 			"thermalBoost":              {"POST", "/thermal/{kind:[a-zA-Z]+}/boost/{value:true|false}", thermalBoostHandler(lp)},
 			"thermalConfig":             {"POST", "/thermal/{kind:[a-zA-Z]+}/config", thermalConfigHandler(lp)},
+			"thermalTargets":            {"POST", "/thermal/{kind:[a-zA-Z]+}/targets", thermalTargetsHandler(lp)},
 			"mode":                      {"POST", "/mode/{value:[a-z]+}", handler(eapi.ChargeModeString, pass(lp.SetMode), lp.GetMode)},
 			"alwaysCharge":              {"POST", "/alwayscharge/{value:[a-z]+}", handler(eapi.AlwaysChargeString, lp.SetAlwaysCharge, lp.GetAlwaysCharge)},
 			"limitsoc":                  {"POST", "/limitsoc/{value:[0-9]+}", intHandler(pass(lp.SetLimitSoc), lp.GetLimitSoc)},

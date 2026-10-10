@@ -1836,6 +1836,8 @@ components:
               type: number
             mode:
               type: string
+            target:
+              type: number
         requested:
           type: boolean
         active:
@@ -1848,6 +1850,25 @@ components:
           type: boolean
         target:
           type: number
+        normalTarget:
+          type: number
+        boostTarget:
+          type: number
+        range:
+          type: object
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            step:
+              type: number
+          required:
+            - min
+            - max
+            - step
+        pendingTargetUpdate:
+          type: boolean
         mode:
           type: string
         modes:

@@ -1204,6 +1204,20 @@ func (mr *MockAPIMockRecorder) SetThermalBoostConfig(arg0, arg1 any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThermalBoostConfig", reflect.TypeOf((*MockAPI)(nil).SetThermalBoostConfig), arg0, arg1)
 }
 
+// SetThermalTargets mocks base method.
+func (m *MockAPI) SetThermalTargets(arg0 string, arg1 api.ThermalTargets) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetThermalTargets", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetThermalTargets indicates an expected call of SetThermalTargets.
+func (mr *MockAPIMockRecorder) SetThermalTargets(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetThermalTargets", reflect.TypeOf((*MockAPI)(nil).SetThermalTargets), arg0, arg1)
+}
+
 // SetThresholds mocks base method.
 func (m *MockAPI) SetThresholds(thresholds ThresholdsConfig) {
 	m.ctrl.T.Helper()

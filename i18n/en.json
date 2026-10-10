@@ -1787,6 +1787,12 @@
     "vehicles": "Parking",
     "welcome": "Hello aboard!",
     "thermal": {
+      "normalTarget": "Normal target",
+      "boostTarget": "Boost target",
+      "temperatures": "Temperatures",
+      "updating": "Target update pending",
+      "pendingTargetUpdate": "Temperature update pending. Please wait.",
+      "invalidTargets": "Choose a boost target above normal and within the temperature range.",
       "title": "Comfort",
       "settings": "Comfort settings",
       "changed": "Target changed",

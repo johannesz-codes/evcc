@@ -53,6 +53,7 @@ export default defineComponent({
 		statusKey(fn: ThermalFunction) {
 			if (fn.ownershipLost) return "changed";
 			if (fn.pendingRestore) return "restoring";
+			if (fn.pendingTargetUpdate) return "updating";
 			if (!fn.available) return "unavailable";
 			if (fn.active) return "active";
 			if (fn.requested) return "requested";

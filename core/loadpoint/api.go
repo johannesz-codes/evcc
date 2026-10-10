@@ -32,6 +32,8 @@ type API interface {
 	SetThermalBoost(string, bool) error
 	// SetThermalBoostConfig changes a function's boost parameters while idle.
 	SetThermalBoostConfig(string, api.ThermalBoost) error
+	// SetThermalTargets changes normal and boost temperatures.
+	SetThermalTargets(string, api.ThermalTargets) error
 	//
 	// status
 	//

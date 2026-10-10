@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/evcc-io/evcc/api"
@@ -19,29 +21,40 @@ type Store interface {
 
 // State is a logical function's UI/API state, without power or energy fields.
 type State struct {
-	Kind           string           `json:"kind"`
-	Boost          api.ThermalBoost `json:"boost"`
-	Requested      bool             `json:"requested"`
-	Active         bool             `json:"active"`
-	Available      bool             `json:"available"`
-	OwnershipLost  bool             `json:"ownershipLost"`
-	PendingRestore bool             `json:"pendingRestore"`
-	Target         *float64         `json:"target,omitempty"`
-	Mode           string           `json:"mode,omitempty"`
-	Modes          []string         `json:"modes,omitempty"`
-	BoostModes     []string         `json:"boostModes,omitempty"`
-	Error          string           `json:"error,omitempty"`
+	Kind                string            `json:"kind"`
+	Boost               api.ThermalBoost  `json:"boost"`
+	Requested           bool              `json:"requested"`
+	Active              bool              `json:"active"`
+	Available           bool              `json:"available"`
+	OwnershipLost       bool              `json:"ownershipLost"`
+	PendingRestore      bool              `json:"pendingRestore"`
+	Target              *float64          `json:"target,omitempty"`
+	Mode                string            `json:"mode,omitempty"`
+	Modes               []string          `json:"modes,omitempty"`
+	BoostModes          []string          `json:"boostModes,omitempty"`
+	Error               string            `json:"error,omitempty"`
+	NormalTarget        *float64          `json:"normalTarget,omitempty"`
+	BoostTarget         *float64          `json:"boostTarget,omitempty"`
+	Range               *api.ThermalRange `json:"range,omitempty"`
+	PendingTargetUpdate bool              `json:"pendingTargetUpdate,omitempty"`
 }
 
 type ownership struct {
-	Baseline float64 `json:"baseline"`
-	Written  float64 `json:"written"`
+	Baseline float64  `json:"baseline"`
+	Written  float64  `json:"written"`
+	Previous *float64 `json:"previous,omitempty"`
+}
+
+type targetUpdate struct {
+	Normal float64 `json:"normal"`
+	Boost  float64 `json:"boost"`
 }
 
 type saved struct {
-	Identity  string           `json:"identity"`
-	Boost     api.ThermalBoost `json:"boost"`
-	Ownership *ownership       `json:"ownership,omitempty"`
+	Identity       string           `json:"identity"`
+	Boost          api.ThermalBoost `json:"boost"`
+	Ownership      *ownership       `json:"ownership,omitempty"`
+	PendingTargets *targetUpdate    `json:"pendingTargets,omitempty"`
 }
 
 type function struct {
@@ -71,11 +84,15 @@ func New(device api.ThermalDevice, store Store) (*Controller, error) {
 			values[value] = true
 		}
 		f := &function{device: dev, spec: spec, saved: saved{Identity: spec.Identity, Boost: spec.Boost}}
-		if err := store.Load(spec.Kind, &f.saved); err != nil {
+		var persisted *saved
+		if err := store.Load(spec.Kind, &persisted); err != nil {
 			return nil, err
 		}
+		if persisted != nil {
+			f.saved = *persisted
+		}
 		if f.saved.Identity != spec.Identity {
-			if f.saved.Ownership != nil {
+			if f.saved.Ownership != nil || f.saved.PendingTargets != nil {
 				return nil, fmt.Errorf("thermal %s: device changed while restoration is pending", spec.Kind)
 			}
 			f.saved = saved{Identity: spec.Identity, Boost: spec.Boost}
@@ -87,8 +104,13 @@ func New(device api.ThermalDevice, store Store) (*Controller, error) {
 			return nil, fmt.Errorf("thermal %s: invalid target range", spec.Kind)
 		}
 		if owned := f.saved.Ownership; owned != nil {
-			if !f.validTarget(owned.Baseline) || !f.validTarget(owned.Written) {
+			if !f.validTarget(owned.Baseline) || !f.validTarget(owned.Written) || (owned.Previous != nil && !f.validTarget(*owned.Previous)) {
 				return nil, fmt.Errorf("thermal %s: invalid ownership record", spec.Kind)
+			}
+		}
+		if pending := f.saved.PendingTargets; pending != nil {
+			if f.saved.Ownership != nil || f.validateTargets(api.ThermalTargets{Normal: pending.Normal, Boost: pending.Boost}) != nil {
+				return nil, fmt.Errorf("thermal %s: invalid target update record", spec.Kind)
 			}
 		}
 		for _, existing := range c.functions {
@@ -103,13 +125,30 @@ func New(device api.ThermalDevice, store Store) (*Controller, error) {
 
 func (f *function) validateBoost(b api.ThermalBoost) error {
 	if len(f.spec.Modes) > 0 {
-		if _, ok := f.spec.Modes[b.Mode]; !ok || b.Delta != 0 || !slices.Contains(f.spec.BoostModes, b.Mode) {
+		if _, ok := f.spec.Modes[b.Mode]; !ok || b.Delta != 0 || b.Target != nil || !slices.Contains(f.spec.BoostModes, b.Mode) {
 			return errors.New("unsupported boost mode")
+		}
+		return nil
+	}
+	if b.Target != nil {
+		if b.Mode != "" || b.Delta != 0 || !f.validTarget(*b.Target) {
+			return errors.New("unsupported boost temperature")
 		}
 		return nil
 	}
 	if math.IsNaN(b.Delta) || math.IsInf(b.Delta, 0) || b.Delta <= 0 || b.Delta > 5 || b.Mode != "" || f.spec.Step <= 0 || math.Abs(b.Delta/f.spec.Step-math.Round(b.Delta/f.spec.Step)) > 1e-6 {
 		return errors.New("boost delta must be positive, at most 5 K, and match target precision")
+	}
+	return nil
+}
+
+func (f *function) validateTargets(targets api.ThermalTargets) error {
+	if len(f.spec.Modes) > 0 || !f.validTarget(targets.Normal) || !f.validTarget(targets.Boost) {
+		return errors.New("temperatures must match the device range and precision")
+	}
+	delta := targets.Boost - targets.Normal
+	if delta < f.spec.Step-1e-6 || delta > 5+1e-6 {
+		return errors.New("boost temperature must be above normal by at most 5 K")
 	}
 	return nil
 }
@@ -131,6 +170,29 @@ func (f *function) validTarget(v float64) bool {
 	return v >= f.spec.Min && v <= f.spec.Max && math.Abs(v/f.spec.Step-math.Round(v/f.spec.Step)) < 1e-6
 }
 
+func (f *function) sameTarget(a, b float64) bool {
+	if len(f.spec.Modes) > 0 {
+		return a == b
+	}
+	return math.Round(a/f.spec.Step) == math.Round(b/f.spec.Step)
+}
+
+func (f *function) targetValue(value float64) float64 {
+	if len(f.spec.Modes) > 0 {
+		return value
+	}
+	step := strconv.FormatFloat(f.spec.Step, 'f', -1, 64)
+	precision := 0
+	if decimal := strings.IndexByte(step, '.'); decimal >= 0 {
+		precision = len(step) - decimal - 1
+	}
+	scale := math.Pow10(precision)
+	if !finite(value * scale) {
+		return value
+	}
+	return math.Round(value*scale) / scale
+}
+
 func (c *Controller) find(kind string) (*function, error) {
 	for _, f := range c.functions {
 		if f.spec.Kind == kind {
@@ -147,6 +209,11 @@ func (c *Controller) SetBoost(kind string, enable bool) error {
 	f, err := c.find(kind)
 	if err != nil {
 		return err
+	}
+	if f.saved.PendingTargets != nil {
+		if _, err := c.update(f); err != nil {
+			return err
+		}
 	}
 	if !enable {
 		f.lost = false
@@ -178,7 +245,7 @@ func (c *Controller) SetBoostConfig(kind string, boost api.ThermalBoost) error {
 	if err != nil {
 		return err
 	}
-	if f.requested || f.saved.Ownership != nil {
+	if f.requested || f.saved.Ownership != nil || f.saved.PendingTargets != nil {
 		return errors.New("disable boost and finish restoration before changing its parameters")
 	}
 	if err := f.validateBoost(boost); err != nil {
@@ -193,6 +260,79 @@ func (c *Controller) SetBoostConfig(kind string, boost api.ThermalBoost) error {
 	return nil
 }
 
+// SetTargets changes normal comfort and its absolute boost target, including during an owned boost.
+func (c *Controller) SetTargets(kind string, targets api.ThermalTargets) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	f, err := c.find(kind)
+	if err != nil {
+		return err
+	}
+	if err := f.validateTargets(targets); err != nil {
+		return err
+	}
+	targets.Normal, targets.Boost = f.targetValue(targets.Normal), f.targetValue(targets.Boost)
+	if f.lost || f.saved.PendingTargets != nil || (!f.requested && f.saved.Ownership != nil) {
+		return errors.New("clear the boost request and finish recovery before changing temperatures")
+	}
+	current, err := f.device.Target()
+	if err != nil {
+		return err
+	}
+	if !f.validTarget(current) {
+		return errors.New("invalid thermal target")
+	}
+	if owned := f.saved.Ownership; owned != nil && !f.sameTarget(current, owned.Written) {
+		_, err := c.update(f)
+		return errors.Join(errors.New("target changed externally; clear the boost request"), err)
+	}
+	boost := api.ThermalBoost{Target: &targets.Boost}
+	next := f.saved
+	if f.requested {
+		next.Boost = boost
+		next.Ownership = &ownership{Baseline: targets.Normal, Written: targets.Boost}
+		if !f.sameTarget(current, targets.Boost) {
+			next.Ownership.Previous = &current
+		}
+		if err := c.store.Save(kind, next); err != nil {
+			return err
+		}
+		f.saved = next
+		f.satisfied = true
+		if !f.sameTarget(current, targets.Boost) {
+			if err := f.device.SetTarget(targets.Boost); err != nil {
+				f.requested = false
+				return err
+			}
+			if err := c.saveOwnership(f, &ownership{Baseline: targets.Normal, Written: targets.Boost}); err != nil {
+				f.requested = false
+				return err
+			}
+		}
+		return nil
+	}
+	if f.sameTarget(current, targets.Normal) {
+		next.Boost = boost
+	} else {
+		next.PendingTargets = &targetUpdate{Normal: targets.Normal, Boost: targets.Boost}
+	}
+	if err := c.store.Save(kind, next); err != nil {
+		return err
+	}
+	f.saved = next
+	if !f.sameTarget(current, targets.Normal) {
+		if err := f.device.SetTarget(targets.Normal); err != nil {
+			return err
+		}
+		next.Boost, next.PendingTargets = boost, nil
+		if err := c.store.Save(kind, next); err != nil {
+			return err
+		}
+		f.saved = next
+	}
+	return nil
+}
+
 func (c *Controller) saveOwnership(f *function, owned *ownership) error {
 	next := f.saved
 	next.Ownership = owned
@@ -204,7 +344,10 @@ func (c *Controller) saveOwnership(f *function, owned *ownership) error {
 }
 
 func (c *Controller) update(f *function) (State, error) {
-	s := State{Kind: f.spec.Kind, Boost: f.saved.Boost, Requested: f.requested, OwnershipLost: f.lost, PendingRestore: !f.requested && f.saved.Ownership != nil, BoostModes: f.spec.BoostModes}
+	s := State{Kind: f.spec.Kind, Boost: f.saved.Boost, Requested: f.requested, OwnershipLost: f.lost, PendingRestore: !f.requested && f.saved.Ownership != nil, BoostModes: f.spec.BoostModes, PendingTargetUpdate: f.saved.PendingTargets != nil}
+	if len(f.spec.Modes) == 0 {
+		s.Range = &api.ThermalRange{Min: f.spec.Min, Max: f.spec.Max, Step: f.spec.Step}
+	}
 	for mode := range f.spec.Modes {
 		s.Modes = append(s.Modes, mode)
 	}
@@ -216,9 +359,21 @@ func (c *Controller) update(f *function) (State, error) {
 	if !f.validTarget(current) {
 		return s, errors.New("invalid thermal target")
 	}
+	current = f.targetValue(current)
 	s.Available = true
+	if pending := f.saved.PendingTargets; pending != nil {
+		next := f.saved
+		if f.sameTarget(current, pending.Normal) {
+			next.Boost = api.ThermalBoost{Target: &pending.Boost}
+		}
+		next.PendingTargets = nil
+		if err := c.store.Save(f.spec.Kind, next); err != nil {
+			return s, err
+		}
+		f.saved = next
+	}
 	if owned := f.saved.Ownership; owned != nil {
-		if current != owned.Written {
+		if !f.sameTarget(current, owned.Written) && (owned.Previous == nil || !f.sameTarget(current, *owned.Previous)) {
 			f.lost = f.requested
 			if err := c.saveOwnership(f, nil); err != nil {
 				return s, err
@@ -239,12 +394,15 @@ func (c *Controller) update(f *function) (State, error) {
 		if len(f.spec.Modes) > 0 {
 			value = f.spec.Modes[boost.Mode]
 		} else {
-			value = math.Round(value/f.spec.Step) * f.spec.Step
+			if boost.Target != nil {
+				value = math.Max(current, *boost.Target)
+			}
+			value = f.targetValue(math.Round(value/f.spec.Step) * f.spec.Step)
 		}
-		if len(f.spec.Modes) == 0 && (value < f.spec.Min || value > f.spec.Max) {
+		if len(f.spec.Modes) == 0 && (value < f.spec.Min || value > f.spec.Max || value-current > 5+1e-6) {
 			return s, errors.New("boost target exceeds device comfort range")
 		}
-		if value != current {
+		if !f.sameTarget(value, current) {
 			if err := c.saveOwnership(f, &ownership{Baseline: current, Written: value}); err != nil {
 				return s, err
 			}
@@ -257,6 +415,16 @@ func (c *Controller) update(f *function) (State, error) {
 	}
 	if len(f.spec.Modes) == 0 {
 		s.Target = &current
+		normal := current
+		if owned := f.saved.Ownership; owned != nil {
+			normal = owned.Baseline
+		}
+		boost := normal + f.saved.Boost.Delta
+		if f.saved.Boost.Target != nil {
+			boost = *f.saved.Boost.Target
+		}
+		boost = f.targetValue(boost)
+		s.NormalTarget, s.BoostTarget = &normal, &boost
 	} else {
 		for mode, value := range f.spec.Modes {
 			if value == current {
@@ -269,7 +437,9 @@ func (c *Controller) update(f *function) (State, error) {
 	}
 	s.Requested, s.OwnershipLost = f.requested, f.lost
 	s.PendingRestore = !f.requested && f.saved.Ownership != nil
-	s.Active = f.saved.Ownership != nil && current == f.saved.Ownership.Written
+	s.PendingTargetUpdate = f.saved.PendingTargets != nil
+	s.Boost = f.saved.Boost
+	s.Active = f.saved.Ownership != nil && f.sameTarget(current, f.saved.Ownership.Written)
 	return s, nil
 }
 

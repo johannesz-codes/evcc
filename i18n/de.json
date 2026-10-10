@@ -1787,6 +1787,12 @@
     "vehicles": "Parkplatz",
     "welcome": "Herzlich willkommen!",
     "thermal": {
+      "normalTarget": "Normaler Sollwert",
+      "boostTarget": "Boost-Sollwert",
+      "temperatures": "Temperaturen",
+      "updating": "Sollwertaktualisierung ausstehend",
+      "pendingTargetUpdate": "Sollwertaktualisierung ausstehend. Bitte warten.",
+      "invalidTargets": "Wähle einen Boost-Sollwert oberhalb des normalen Sollwerts und innerhalb des Temperaturbereichs.",
       "title": "Komfort",
       "settings": "Komforteinstellungen",
       "changed": "Sollwert geändert",

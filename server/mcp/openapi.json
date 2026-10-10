@@ -607,6 +607,10 @@
                   "mode": {
                     "type": "string",
                     "description": "Supported hot water boost mode"
+                  },
+                  "target": {
+                    "type": "number",
+                    "description": "Absolute room boost temperature, mutually exclusive with delta"
                   }
                 }
               }
@@ -629,6 +633,75 @@
           },
           "400": {
             "description": "Invalid parameters, active boost, or pending restoration"
+          }
+        }
+      }
+    },
+    "/loadpoints/{id}/thermal/{kind}/targets": {
+      "post": {
+        "operationId": "setLoadpointThermalTargets",
+        "summary": "Set normal and boost temperatures",
+        "description": "Sets normal comfort and an absolute boost target. During an owned boost, updates the active target and the normal value restored afterwards. External changes and pending recovery block edits.",
+        "tags": [
+          "loadpoints"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/id"
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "spaceHeating"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "normal",
+                  "boost"
+                ],
+                "properties": {
+                  "normal": {
+                    "type": "number",
+                    "description": "Normal room setpoint in degrees Celsius"
+                  },
+                  "boost": {
+                    "type": "number",
+                    "description": "Absolute boost setpoint, above normal by at most 5 K"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated comfort function states",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThermalFunction"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid temperatures, external changes, pending recovery, or device error"
           }
         }
       }
@@ -3565,6 +3638,9 @@
               },
               "mode": {
                 "type": "string"
+              },
+              "target": {
+                "type": "number"
               }
             }
           },
@@ -3585,6 +3661,34 @@
           },
           "target": {
             "type": "number"
+          },
+          "normalTarget": {
+            "type": "number"
+          },
+          "boostTarget": {
+            "type": "number"
+          },
+          "range": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "step": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "min",
+              "max",
+              "step"
+            ]
+          },
+          "pendingTargetUpdate": {
+            "type": "boolean"
           },
           "mode": {
             "type": "string"

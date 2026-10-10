@@ -38,6 +38,25 @@ func TestThermalBoostHandler(t *testing.T) {
 	}
 }
 
+func TestThermalTargetsHandler(t *testing.T) {
+	for _, body := range []string{`{"normal":21,"boost":23}`, `{"normal":"wrong","boost":23}`, `{"normal":21,"boost":23,"unknown":1}`, `null`, `{"normal":21,"boost":23} {}`} {
+		lp := loadpoint.NewMockAPI(gomock.NewController(t))
+		ok := body == `{"normal":21,"boost":23}`
+		if ok {
+			lp.EXPECT().SetThermalTargets("spaceHeating", api.ThermalTargets{Normal: 21, Boost: 23}).Return(nil)
+			lp.EXPECT().GetThermalFunctions().Return(nil)
+		}
+		r := mux.SetURLVars(httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body)), map[string]string{"kind": "spaceHeating"})
+		w := httptest.NewRecorder()
+		thermalTargetsHandler(lp)(w, r)
+		if ok {
+			assert.Equal(t, 200, w.Code)
+		} else {
+			assert.Equal(t, 400, w.Code)
+		}
+	}
+}
+
 func TestThermalConfigHandler(t *testing.T) {
 	for _, body := range []string{`{"delta":1.5}`, `{"mode":"large"}`, `{"delta":"wrong"}`, `{"unknown":1}`} {
 		lp := loadpoint.NewMockAPI(gomock.NewController(t))

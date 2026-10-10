@@ -12,8 +12,9 @@ import (
 )
 
 type testStore struct {
-	values map[string][]byte
-	err    error
+	values        map[string][]byte
+	err           error
+	saves, failAt int
 }
 
 func (s *testStore) Load(key string, dst any) error {
@@ -23,12 +24,183 @@ func (s *testStore) Load(key string, dst any) error {
 	return nil
 }
 func (s *testStore) Save(key string, value any) error {
+	s.saves++
+	if s.saves == s.failAt {
+		return errors.New("disk full")
+	}
 	if s.err != nil {
 		return s.err
 	}
 	b, err := json.Marshal(value)
 	s.values[key] = b
 	return err
+}
+
+func TestEditableTargets(t *testing.T) {
+	c, room, dhw, store := setup(t)
+	require.NoError(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 20.7, Boost: 22.3}))
+	assert.Equal(t, 20.7, room.value)
+	assert.Equal(t, 1., dhw.value)
+	assert.Equal(t, 1, room.writes)
+	assert.InDelta(t, 22.3, *c.Update()[0].BoostTarget, 1e-6)
+	require.NoError(t, c.SetBoost("spaceHeating", true))
+	assert.InDelta(t, 22.3, room.value, 1e-6)
+	require.NoError(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 21, Boost: 22.3}))
+	assert.Equal(t, 2, room.writes, "editing normal during boost only changes the restoration value")
+	require.NoError(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 21.7, Boost: 23.3}))
+	room.value = float64(233) * room.spec.Step
+	state := c.Update()[0]
+	assert.True(t, state.Active, "register scaling must not lose ownership through floating point rounding")
+	assert.Equal(t, 21.7, *state.NormalTarget)
+	assert.InDelta(t, 23.3, *state.BoostTarget, 1e-6)
+	require.NoError(t, c.SetBoost("spaceHeating", false))
+	assert.Equal(t, 21.7, room.value)
+	c, err := New(testDevice{room, dhw}, store)
+	require.NoError(t, err)
+	state = c.Update()[0]
+	assert.Equal(t, 21.7, *state.NormalTarget)
+	assert.InDelta(t, 23.3, *state.BoostTarget, 1e-6)
+	room.value = 20
+	state = c.Update()[0]
+	assert.Equal(t, 20., *state.NormalTarget)
+	assert.InDelta(t, 23.3, *state.BoostTarget, 1e-6, "absolute upper target must not drift with manual normal changes")
+}
+
+func TestTargetEditsPreserveExternalChanges(t *testing.T) {
+	c, room, _, _ := setup(t)
+	require.NoError(t, c.SetBoost("spaceHeating", true))
+	room.value = 20
+	assert.ErrorContains(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 21, Boost: 23}), "externally")
+	assert.Equal(t, 20., room.value)
+	assert.True(t, c.Update()[0].OwnershipLost)
+	assert.Error(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 21, Boost: 23}))
+	require.NoError(t, c.SetBoost("spaceHeating", false))
+	require.NoError(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 21, Boost: 23}))
+	require.NoError(t, c.SetBoost("spaceHeating", true))
+	require.NoError(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 20.7, Boost: 23.3}))
+	room.value = 23
+	assert.True(t, c.Update()[0].OwnershipLost, "previous written value is released after an acknowledged edit")
+	require.NoError(t, c.SetBoost("spaceHeating", false))
+	assert.Equal(t, 23., room.value)
+	assert.Equal(t, 4, room.writes)
+}
+
+func TestTargetValidation(t *testing.T) {
+	c, room, _, _ := setup(t)
+	for _, targets := range []api.ThermalTargets{
+		{Normal: 4, Boost: 6}, {Normal: 29, Boost: 31}, {Normal: 21, Boost: 21},
+		{Normal: 21, Boost: 20}, {Normal: 21, Boost: 26.1}, {Normal: 21.05, Boost: 22},
+		{Normal: math.NaN(), Boost: 22}, {Normal: 21, Boost: math.Inf(1)},
+	} {
+		assert.Error(t, c.SetTargets("spaceHeating", targets))
+	}
+	assert.Error(t, c.SetTargets("domesticHotWater", api.ThermalTargets{Normal: 1, Boost: 2}))
+	assert.Error(t, c.SetTargets("invalid", api.ThermalTargets{Normal: 21, Boost: 22}))
+	assert.Equal(t, 0, room.writes)
+	for _, boost := range []api.ThermalBoost{
+		{Target: new(31.)}, {Target: new(22.), Delta: 1}, {Target: new(math.NaN())},
+	} {
+		assert.Error(t, c.SetBoostConfig("spaceHeating", boost))
+	}
+}
+
+func TestAbsoluteBoostNeverLowersNormal(t *testing.T) {
+	c, room, _, _ := setup(t)
+	require.NoError(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 21, Boost: 22}))
+	room.value = 23
+	require.NoError(t, c.SetBoost("spaceHeating", true))
+	assert.Equal(t, 23., room.value)
+	assert.False(t, c.Update()[0].Active)
+	require.NoError(t, c.SetBoost("spaceHeating", false))
+	assert.Equal(t, 0, room.writes)
+	room.value = 16
+	assert.Error(t, c.SetBoost("spaceHeating", true), "external normal changes cannot bypass the 5 K limit")
+	assert.Equal(t, 16., room.value)
+}
+
+func TestInterruptedNormalTargetEdit(t *testing.T) {
+	for _, applied := range []bool{false, true} {
+		t.Run(map[bool]string{false: "rejected", true: "lost acknowledgement"}[applied], func(t *testing.T) {
+			c, room, dhw, store := setup(t)
+			room.writeErr = errors.New("timeout")
+			room.applyOnError = applied
+			require.Error(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 20.7, Boost: 22.3}))
+			room.readErr = errors.New("offline")
+			c, err := New(testDevice{room, dhw}, store)
+			require.NoError(t, err)
+			assert.True(t, c.Update()[0].PendingTargetUpdate)
+			room.readErr, room.writeErr = nil, nil
+			state := c.Update()[0]
+			assert.False(t, state.PendingTargetUpdate)
+			assert.Equal(t, 1, room.writes, "recovery observes the applied write without repeating it")
+			if applied {
+				assert.Equal(t, 20.7, *state.NormalTarget)
+				assert.InDelta(t, 22.3, *state.BoostTarget, 1e-6)
+			} else {
+				assert.Equal(t, 21., *state.NormalTarget)
+				assert.Equal(t, 22., *state.BoostTarget)
+			}
+		})
+	}
+}
+
+func TestPendingNormalEditPreservesExternalChange(t *testing.T) {
+	c, room, dhw, store := setup(t)
+	store.failAt = 2
+	require.Error(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 20.7, Boost: 23.3}))
+	room.value = 20
+	c, err := New(testDevice{room, dhw}, store)
+	require.NoError(t, err)
+	state := c.Update()[0]
+	assert.Equal(t, 20., room.value)
+	assert.Equal(t, 1, room.writes)
+	assert.False(t, state.PendingTargetUpdate)
+	assert.Equal(t, 21., *state.BoostTarget, "an unconfirmed edit cannot commit its new boost target over a manual change")
+}
+
+func TestInterruptedActiveTargetEdit(t *testing.T) {
+	for _, applied := range []bool{false, true} {
+		t.Run(map[bool]string{false: "rejected", true: "lost acknowledgement"}[applied], func(t *testing.T) {
+			c, room, dhw, store := setup(t)
+			require.NoError(t, c.SetBoost("spaceHeating", true))
+			room.writeErr = errors.New("timeout")
+			room.applyOnError = applied
+			require.Error(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 20.7, Boost: 23.3}))
+			room.writeErr = nil
+			c, err := New(testDevice{room, dhw}, store)
+			require.NoError(t, err)
+			state := c.Update()[0]
+			assert.False(t, state.Requested)
+			assert.False(t, state.PendingRestore)
+			assert.Equal(t, 20.7, room.value, "either interrupted boost value restores the selected normal target")
+			assert.InDelta(t, 23.3, *state.BoostTarget, 1e-6)
+		})
+	}
+}
+
+func TestTargetPersistenceFailures(t *testing.T) {
+	for _, active := range []bool{false, true} {
+		for _, failOffset := range []int{1, 2} {
+			c, room, dhw, store := setup(t)
+			if active {
+				require.NoError(t, c.SetBoost("spaceHeating", true))
+			}
+			before := room.writes
+			store.failAt = store.saves + failOffset
+			require.Error(t, c.SetTargets("spaceHeating", api.ThermalTargets{Normal: 20.7, Boost: 23.3}))
+			if failOffset == 1 {
+				assert.Equal(t, before, room.writes, "journal failure must prevent a target write")
+				continue
+			}
+			c, err := New(testDevice{room, dhw}, store)
+			require.NoError(t, err)
+			state := c.Update()[0]
+			assert.Equal(t, 20.7, room.value)
+			assert.InDelta(t, 23.3, *state.BoostTarget, 1e-6)
+			assert.False(t, state.PendingRestore)
+			assert.False(t, state.PendingTargetUpdate)
+		}
+	}
 }
 
 type testFunction struct {

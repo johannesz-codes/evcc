@@ -36,6 +36,16 @@ func (lp *Loadpoint) SetThermalBoostConfig(kind string, config api.ThermalBoost)
 	return err
 }
 
+// SetThermalTargets changes the selected function's normal and boost temperatures.
+func (lp *Loadpoint) SetThermalTargets(kind string, targets api.ThermalTargets) error {
+	if lp.thermal == nil {
+		return errors.New("thermal flexibility unavailable")
+	}
+	err := lp.thermal.SetTargets(kind, targets)
+	lp.publishThermal()
+	return err
+}
+
 func (lp *Loadpoint) publishThermal() {
 	if lp.thermal != nil {
 		lp.publish(keys.Thermal, lp.GetThermalFunctions())
