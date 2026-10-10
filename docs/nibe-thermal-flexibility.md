@@ -75,7 +75,9 @@ SG Ready meaning. The card has a separate space-heating slider above the existin
 water-temperature slider. Its two editable, keyboard-accessible handles select
 Normal target and Boost target on a 15 to 30 °C scale. It uses the same wide
 thermometer bar, temperature colors, and tall handles as the water control. The
-existing water slider, temperature reading, and limit selector are unchanged.
+boost handle and its target label are red to distinguish them from the normal
+setpoint. The existing water slider, temperature reading, and limit selector are
+unchanged.
 Dragging commits on release; handles cannot cross or exceed the 5 K gap.
 
 The room bar shows the measured BT50 temperature from input 26, signed int16,

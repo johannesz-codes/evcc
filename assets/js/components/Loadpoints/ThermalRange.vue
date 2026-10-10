@@ -7,7 +7,7 @@
 			</label>
 			<label :for="`${id}-boost`" class="text-end">
 				{{ $t("main.thermal.boostTarget") }}
-				<strong class="d-block text-evcc">{{ fmtTemperature(boost) }}</strong>
+				<strong class="d-block boost-target">{{ fmtTemperature(boost) }}</strong>
 			</label>
 		</div>
 		<div
@@ -243,8 +243,14 @@ export default defineComponent({
 	--handle-position: var(--normal-position);
 	z-index: 1;
 }
-.boost-range {
-	--handle-position: var(--boost-position);
+.boost-target {
+	color: var(--evcc-temp-hot);
+}
+.boost-range::-webkit-slider-thumb {
+	background: var(--evcc-temp-hot);
+}
+.boost-range::-moz-range-thumb {
+	background: var(--evcc-temp-hot);
 }
 .slider:focus-visible::-webkit-slider-thumb {
 	outline: 2px solid var(--evcc-default-text);
